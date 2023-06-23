@@ -1,0 +1,4 @@
+num_of_nodes: 5
+num_of_gateways: 1
+payload: 50
+lambda: 1
