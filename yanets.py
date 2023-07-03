@@ -54,39 +54,42 @@ def main():
     sim_lambda = config.get('lambda', 1)
 
     # ### MAIN Program ###
-    gateways, emitters = [], []
+    nodes = []
 
     # Prepare Nodes
     event_queue = EventQueue()
-    collision_domain = CollisionDomain()
-
-    # Create nodes
-    for i in range(num_of_nodes):
-        emitter = LoraNode(i, event_queue, collision_domain)
-        emitter.set_pose(poses[i][0], poses[i][1]) if len(poses) > i else emitter.set_pose(i,i)
-        emitters.append(emitter)
+    collision_domain = CollisionDomain(event_queue)
 
     # Create gateways
     for i in range(num_of_gw):
         gw = LoraGateway(i, event_queue, collision_domain)
-        gateways.append(gw)
+        nodes.append(gw)
+
+    # Create nodes
+    for i in range(num_of_gw, num_of_nodes + num_of_gw):
+        emitter = LoraNode(i, event_queue, collision_domain)
+        emitter.set_pose(poses[i][0], poses[i][1]) if len(poses) > i else emitter.set_pose(i, i)
+        nodes.append(emitter)
 
     # Add nodes to collision domain
-    collision_domain.append_nodes(emitters)
-    collision_domain.append_nodes(gateways)
+    collision_domain.append_nodes(nodes)
 
     # Create first event for each node
-    for i in range(num_of_nodes):
+    for i in [n.id for n in nodes if isinstance(n, LoraNode)]:
         ts = numpy.random.exponential(1 / sim_lambda)
-        event_queue.push(EventDataEnqueued(ts, i, payload))
+        new_event = EventDataEnqueued(ts, i)
+        new_event.set_info({'payload': payload})
+        event_queue.push(new_event)
 
     # Main event loop
     while event_queue.size() > 0:
         event = event_queue.pop()
+
         print("Processing event {} at ts:{}".format(type(event), event.get_ts()))
+
         if isinstance(event, NodeEvent):
-            node = event.get_node()
-            emitters[node].process_event(event)
+            node_id = event.get_node()
+            nodes[node_id].process_event(event)
 
 
 if __name__ == "__main__":

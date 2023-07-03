@@ -1,4 +1,4 @@
-from Events import EventDataEnqueued, EventTXStarted, EventTXFinished
+from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX
 
 
 class Node(object):
@@ -23,14 +23,18 @@ class LoraNode(Node):
         print("Node %d: processing event %s" % (self.id, type(event)))
 
         if isinstance(event, EventDataEnqueued):
-            self.event_queue.push(EventTXStarted(event.ts + 1, self.id, event.get_payload()))
+            new_event = EventTXStarted(event.ts + 1, self.id, event.get_info())
+            new_event.extend({'sf': 7, 'source': self.id})
+            self.event_queue.push(new_event)
 
         elif isinstance(event, EventTXStarted):
-            self.collision_domain.set_transmitting(self.id, True)
-            self.event_queue.push(EventTXFinished(event.ts + 1, self.id))
+            self.collision_domain.process(event)
 
         elif isinstance(event, EventTXFinished):
-            self.collision_domain.set_transmitting(self.id, False)
+            self.collision_domain.process(event)
+
+        elif isinstance(event, EventRX):
+            print("Node {}: received data from node {}, data: {}".format(self.id, event.get('source'), event.get_info()))
 
 
 class LoraGateway(LoraNode):
