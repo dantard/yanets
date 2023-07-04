@@ -1,4 +1,8 @@
-from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX
+import random
+
+import numpy
+
+from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventFreeCollisionDomain
 
 
 class Node(object):
@@ -16,26 +20,52 @@ class Node(object):
         self.x = x
         self.y = y
 
+    def distance(self, node):
+        return numpy.sqrt((self.x - node.x) ** 2 + (self.y - node.y) ** 2)
 
-class LoraNode(Node):
+
+class LoraDevice(Node):
+
+    def __init__(self, id, event_queue, collision_domain):
+        super(LoraDevice, self).__init__(id, event_queue, collision_domain)
+        self.received = []
+        self.serial = 0
+
     def process_event(self, event):
 
-        print("Node %d: processing event %s" % (self.id, type(event)))
+        # print("Node %d: processing event %s" % (self.id, type(event)))
 
         if isinstance(event, EventDataEnqueued):
-            new_event = EventTXStarted(event.ts + 1, self.id, event.get_info())
-            new_event.extend({'sf': 7, 'source': self.id})
+            new_event = EventTXStarted(event.ts, self.id, event.get_info())
+            self.event_queue.push(new_event)
+
+            new_event = EventDataEnqueued(event.ts + 5000, self.id)
+            new_event.set_info({'source': self.id, 'payload': 50})
             self.event_queue.push(new_event)
 
         elif isinstance(event, EventTXStarted):
-            self.collision_domain.process(event)
+            new_event = EventOccupyCollisionDomain(event.ts, self.id, event.get_info())
+            new_event.extend({'sf': 7, 'serial': self.serial})
+            self.event_queue.push(new_event)
+            self.serial += 1
+
+            new_event = EventTXFinished(event.ts + numpy.random.randint(1, 1000), self.id, new_event.get_info())
+            self.event_queue.push(new_event)
 
         elif isinstance(event, EventTXFinished):
-            self.collision_domain.process(event)
+            new_event = EventFreeCollisionDomain(event.ts + 1, self.id, event.get_info())
+            self.event_queue.push(new_event)
 
         elif isinstance(event, EventRX):
-            print("Node {}: received data from node {}, data: {}".format(self.id, event.get('source'), event.get_info()))
+            self.received.append(event.get_info())
+
+    def get_received(self):
+        return self.received
 
 
-class LoraGateway(LoraNode):
+class LoraNode(LoraDevice):
+    pass
+
+
+class LoraGateway(LoraDevice):
     pass
