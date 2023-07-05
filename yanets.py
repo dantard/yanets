@@ -7,7 +7,7 @@ import numpy
 from CollisionDomain import CollisionDomain
 from EventQueue import EventQueue
 from Events import EventDataEnqueued, NodeEvent, CollisionDomainEvent
-from Nodes import LoraNode, LoraGateway, LoraDevice
+from Nodes import LoraNode, LoraGateway
 import yaml
 from yaml.loader import SafeLoader
 import csv
