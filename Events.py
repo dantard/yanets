@@ -1,5 +1,4 @@
 class Event:
-
     event_counter = 0
 
     def __init__(self, ts, info=None):
@@ -51,6 +50,7 @@ class EventOccupyCollisionDomain(CollisionDomainEvent):
 class EventFreeCollisionDomain(CollisionDomainEvent):
     pass
 
+
 class EventDataEnqueued(NodeEvent):
     pass
 
@@ -64,4 +64,16 @@ class EventTXFinished(NodeEvent):
 
 
 class EventRX(NodeEvent):
+    pass
+
+
+class EventChannelAssessment(CollisionDomainEvent):
+    pass
+
+
+class EventCollisionDomainFree(NodeEvent):
+    pass
+
+
+class EventCollisionDomainBusy(NodeEvent):
     pass

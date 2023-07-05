@@ -2,7 +2,8 @@ import random
 
 import numpy
 
-from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventFreeCollisionDomain
+from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventFreeCollisionDomain, EventChannelAssessment, \
+    EventCollisionDomainFree, EventCollisionDomainBusy
 
 
 class Node(object):
@@ -30,18 +31,33 @@ class LoraDevice(Node):
         super(LoraDevice, self).__init__(id, event_queue, collision_domain)
         self.received = []
         self.serial = 0
+        self.csma_fail = 0
 
     def process_event(self, event):
 
         # print("Node %d: processing event %s" % (self.id, type(event)))
 
         if isinstance(event, EventDataEnqueued):
-            new_event = EventTXStarted(event.ts, self.id, event.get_info())
+            new_event = EventChannelAssessment(event.ts, self.id, event.get_info())
             self.event_queue.push(new_event)
 
             new_event = EventDataEnqueued(event.ts + 5000, self.id)
             new_event.set_info({'source': self.id, 'payload': 50})
             self.event_queue.push(new_event)
+
+        elif isinstance(event, EventCollisionDomainFree):
+            new_event = EventTXStarted(event.ts, self.id, event.get_info())
+            self.event_queue.push(new_event)
+
+        elif isinstance(event, EventCollisionDomainBusy):
+            info = event.get_info()
+            retries = info.get('retries', 0)
+            if retries < 5:
+                info['retries'] = retries + 1
+                new_event = EventChannelAssessment(event.ts+1, self.id, info)
+                self.event_queue.push(new_event)
+            else:
+                self.csma_fail += 1
 
         elif isinstance(event, EventTXStarted):
             new_event = EventOccupyCollisionDomain(event.ts, self.id, event.get_info())

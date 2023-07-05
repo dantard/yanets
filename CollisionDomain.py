@@ -1,4 +1,5 @@
-from Events import EventRX, EventTXStarted, EventTXFinished, EventOccupyCollisionDomain, EventFreeCollisionDomain
+from Events import EventRX, EventTXStarted, EventTXFinished, EventOccupyCollisionDomain, EventFreeCollisionDomain, EventChannelAssessment, \
+    EventCollisionDomainFree, EventCollisionDomainBusy
 
 
 def exclude(lst, ex):
@@ -37,10 +38,19 @@ class CollisionDomain:
                 # Upate the collisions field with the new collisions (notice that this is a set)
                 info['collisions'].update(collisions)
 
-        if isinstance(event, EventFreeCollisionDomain):
+        elif isinstance(event, EventFreeCollisionDomain):
             self.transmitting[event.node_id] = False
             self.progagate_frame(event)
             self.frames.remove(event.get_info())
+
+        elif isinstance(event, EventChannelAssessment):
+            #print(self.transmitting, any(self.transmitting))
+            if not any(self.transmitting):
+                new_event = EventCollisionDomainFree(event.ts + 1, event.node_id, event.get_info())
+                self.event_queue.push(new_event)
+            else:
+                new_event = EventCollisionDomainBusy(event.ts + 1, event.node_id, event.get_info())
+                self.event_queue.push(new_event)
 
     def progagate_frame(self, event):
 

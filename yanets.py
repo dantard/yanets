@@ -87,7 +87,7 @@ def main():
     # Main event loop
     simulated_events = 0
 
-    while event_queue.size() > 0 and simulated_events < 25:
+    while event_queue.size() > 0 and simulated_events < 285:
         event = event_queue.pop()
 
         if isinstance(event, CollisionDomainEvent):
