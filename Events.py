@@ -19,10 +19,13 @@ class Event:
     def get_info(self):
         return self.info
 
+    def inspect(self, key):
+        return self.info.get(key)
+
     def set_info(self, info):
         self.info = info
 
-    def extend(self, info):
+    def add_info(self, info):
         self.info.update(info)
 
 
@@ -30,6 +33,13 @@ class InfoEvent(Event):
     def __init__(self, ts, node_id, info=None):
         super().__init__(ts, info)
         self.node_id = node_id
+        self.longitude, self.latitude = None, None
+        self.data = None
+
+    def from_node(self, node):
+        self.node_id = node.get_id()
+        self.longitude, self.latitude = node.get_latlon()
+        self.data = node.get_data()
 
     def get_node_id(self):
         return self.node_id
@@ -51,6 +61,10 @@ class EventFreeCollisionDomain(CollisionDomainEvent):
     pass
 
 
+class EventChannelAssessment(CollisionDomainEvent):
+    pass
+
+
 class EventDataEnqueued(NodeEvent):
     pass
 
@@ -58,16 +72,17 @@ class EventDataEnqueued(NodeEvent):
 class EventTXStarted(NodeEvent):
     pass
 
+class EventAckEnqueued(EventDataEnqueued):
+    pass
+
+class EventSecondAckEnqueued(EventDataEnqueued):
+    pass
 
 class EventTXFinished(NodeEvent):
     pass
 
 
 class EventRX(NodeEvent):
-    pass
-
-
-class EventChannelAssessment(CollisionDomainEvent):
     pass
 
 

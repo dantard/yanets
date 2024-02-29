@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 
 import argparse
+import json
+import sys
 
 import numpy
 
 from CollisionDomain import CollisionDomain
 from EventQueue import EventQueue
 from Events import EventDataEnqueued, NodeEvent, CollisionDomainEvent
-from Nodes import LoraNode, LoraGateway
+from Nodes import LoraNode, LoraGateway, CafcoNode, UserNode
 import yaml
 from yaml.loader import SafeLoader
-import csv
 
 
 def main():
@@ -19,7 +20,8 @@ def main():
         description='Yet Another NETwork Simulator',
         epilog='Have fun!')
     parser.add_argument('-f', '--config-file', type=str, default=None, help='Configuration file')
-    parser.add_argument('-p', '--pose-file', type=str, default=None, help='Configuration file')
+    parser.add_argument('-p', '--pose-file', type=str, default="poses.json", help='Configuration file')
+    parser.add_argument('-r', '--random-seed', type=int, default=0, help='Random seed')
 
     args = parser.parse_args()
 
@@ -36,25 +38,47 @@ def main():
 
     # ### READ POSES FROM FILE ###
     poses = []
+
+    num_of_gw = config.get('num_of_gateway', 2)
+
     if args.pose_file is not None:
         try:
-            with open(args.pose_file) as csv_file:
-                csv_reader = csv.reader(csv_file, delimiter=',')
-                for row in csv_reader:
-                    x, y = row[0], row[1]
-                    poses.append((x, y))
+            with open(args.pose_file) as json_file:
+                conf_data = json.load(json_file)
+                num_of_nodes = len(conf_data)
+
         except FileNotFoundError:
             print("No pose file found. Exiting.")
             exit(1)
-
-    # Define varibale and their default values
-    num_of_nodes = config.get('num_of_nodes', 5)
-    num_of_gw = config.get('num_of_gateway', 2)
-    payload = config.get('payload', 50)
-    sim_lambda = config.get('lambda', 1)
+    else:
+        # Define varibale and their default values
+        node_conf = {
+            "_id": {
+                "$oid": "64c634a0c6976e465b191e5d"
+            },
+            "trackerid": "bb000008",
+            "longitude": "-2.6147869",
+            "latitude": "42.9655609",
+            "PHYPayload": "40080000bb000b02020d82e75f04b2a1b2878859af34612e",
+            "content": "QAgAALsACwICDYLnXwSyobKHiFmvNGEu",
+            "data": "bb1201422bdcbcc02758ab",
+            "freq": [
+                "868.5"
+            ],
+            "datr": [
+                "SF7BW125"
+            ],
+            "codr": [
+                "4/5"
+            ]
+        }
+        num_of_nodes = config.get('num_of_nodes', 4)
+        conf_data = []
+        for i in range(num_of_nodes):
+            conf_data.append(node_conf)
 
     # ### MAIN Program ###
-    numpy.random.seed(12)
+    numpy.random.seed(config.get("random_seed"))
 
     nodes = {}
 
@@ -64,24 +88,27 @@ def main():
 
     # Create nodes
     for i in range(0, num_of_nodes):
-        emitter = LoraNode(i, event_queue, collision_domain)
-        emitter.set_pose(poses[i][0], poses[i][1]) if len(poses) > i else emitter.set_pose(i, i)
+        emitter = CafcoNode(i, event_queue, collision_domain)
+        emitter.set_config(conf_data[i])
         nodes[emitter.id] = emitter
+        # emitter.print()
 
     # Create gateways
     for i in range(num_of_nodes, num_of_nodes + num_of_gw):
         gw = LoraGateway(i, event_queue, collision_domain)
-        gw.set_pose(poses[i][0], poses[i][1]) if len(poses) > i else gw.set_pose(i, i)
+        gw.set_latlon(poses[i][0], poses[i][1]) if len(poses) > i else gw.set_latlon(i, i)
         nodes[gw.id] = gw
 
     # Add nodes to collision domain
     collision_domain.set_nodes(nodes)
 
     # Create first event for each node
-    for i in [n.id for n in nodes.values() if isinstance(n, LoraNode)]:
-        ts = numpy.random.exponential(1000 / sim_lambda)
+    for i in [n.id for n in nodes.values() if isinstance(n, UserNode)]:
+        ts = numpy.random.exponential(1000 / 1)
+        # Random
+        # ts = numpy.random.uniform(1, 1)
         new_event = EventDataEnqueued(ts, i)
-        new_event.set_info({'source': i, 'payload': payload})
+        new_event.set_info(nodes[i].get_config())
         event_queue.push(new_event)
 
     # Main event loop
@@ -92,17 +119,22 @@ def main():
 
         if isinstance(event, CollisionDomainEvent):
             collision_domain.process_event(event)
+            obj = " "
 
         elif isinstance(event, NodeEvent):
             node_id = event.get_node_id()
             nodes[node_id].process_event(event)
+            obj = "G" if isinstance(nodes[node_id], LoraGateway) else "N"
+        else:
+            obj = "?"
 
         # print("Processing event {} at ts:{}".format(type(event), event.get_ts()))
-        print("{:21.12f} {:3d} {:30s} {} {}".format(event.get_ts(),
-                                                    event.get_node_id(),
-                                                    event.__class__.__name__,
-                                                    [1 if c else 0 for c in collision_domain.get_transmitting()],
-                                                    event.get_info()))
+        print("{:21.12f} {} {:3d} {:30s} {} {}".format(
+            event.get_ts(), obj,
+            event.get_node_id(),
+            event.__class__.__name__,
+            [1 if c else 0 for c in collision_domain.get_transmitting()],
+            event.get_info()))
         simulated_events += 1
 
     for gw in nodes.values():

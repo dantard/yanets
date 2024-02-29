@@ -12,7 +12,7 @@ class CollisionDomain:
         self.nodes = {}
         self.transmitting = []
         self.event_queue = event_queue
-        self.frames = []
+        self.ongoing_frames = []
 
     def set_nodes(self, nodes):
         self.nodes = nodes
@@ -25,12 +25,12 @@ class CollisionDomain:
 
         if isinstance(event, EventOccupyCollisionDomain):
             self.transmitting[event.node_id] = True
-            self.frames.append(event.get_info())
-            for info in self.frames:
+            self.ongoing_frames.append((event.get_node_id(), event.get_info()))
+            for node_id, info in self.ongoing_frames:
 
                 # For each frame in the collision domain queue, mark all other frames
                 # as collided if another transmission is started on the same channel
-                collisions = [f.get('source') for f in self.frames if f.get('source') != info.get('source')]
+                collisions = [f_node_id for f_node_id, f_info in self.ongoing_frames if f_node_id != node_id]
 
                 # Create the 'collissions' field if it doesn't exist
                 info['collisions'] = info.get('collisions', set())
@@ -41,7 +41,7 @@ class CollisionDomain:
         elif isinstance(event, EventFreeCollisionDomain):
             self.transmitting[event.node_id] = False
             self.progagate_frame(event)
-            self.frames.remove(event.get_info())
+            self.ongoing_frames.remove((event.node_id, event.get_info()))
 
         elif isinstance(event, EventChannelAssessment):
             #print(self.transmitting, any(self.transmitting))
@@ -54,9 +54,8 @@ class CollisionDomain:
 
     def progagate_frame(self, event):
 
-        source_id = event.get_info().get('source')
         collisioners = event.get_info().get('collisions')
-        source_node = self.nodes[source_id]
+        source_node = self.nodes[event.node_id]
 
         # I consider the receivers one by one (all the nodes except the source)
         for receiver in exclude(self.nodes.values(), source_node):
