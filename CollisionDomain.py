@@ -1,5 +1,6 @@
 from Events import EventRX, EventTXStarted, EventTXFinished, EventOccupyCollisionDomain, EventFreeCollisionDomain, EventChannelAssessment, \
     EventCollisionDomainFree, EventCollisionDomainBusy
+from Frame import Frame
 from lora import compute_lora_duration
 
 
@@ -22,52 +23,40 @@ class CollisionDomain:
         self.nodes = nodes
         self.transmitting.extend([False] * len(nodes))
 
-    def get_transmitting(self):
-        return self.transmitting
-
     def process_event(self, event):
 
         if isinstance(event, EventOccupyCollisionDomain):
-            self.transmitting[event.node_id] = True
-            self.ongoing_frames.append((event.node_id, event.get_info()))
+            self.transmitting[event.frame.get_source()] = True
+            self.ongoing_frames.append(event.get_frame())
 
-            if event.get_info().get('collisions') is None:
-                event.get_info().update({'collisions': set()})
+            for frame in self.ongoing_frames:
+                if frame.get_source() == event.frame.get_source():
+                    continue
+                event.get_frame().add_collision(frame.get_source())
+                frame.add_collision(event.frame.get_source())
 
-            for o_node_id, o_info in self.ongoing_frames:
-                if o_node_id != event.node_id:
-                    event.get_info().get('collisions').add(o_node_id)
-                    o_info.get('collisions').add(event.node_id)
-
-
-            bw = event.inspect('bw')
-            sf = event.inspect('sf')
-            cr = event.inspect('codr')
-            ToA = compute_lora_duration(804, sf, bw, cr, 1)
-            new_event = EventFreeCollisionDomain(event.ts + ToA, event)
+            bw = event.get_frame().get_info("bw")
+            sf = event.get_frame().get_info('sf')
+            cr = event.get_frame().get_info('codr')
+            ToA = compute_lora_duration(80, sf, bw, cr, 1)
+            new_event = EventFreeCollisionDomain(event.ts + ToA, event.get_frame())
             self.event_queue.push(new_event)
 
         elif isinstance(event, EventFreeCollisionDomain):
-            self.transmitting[event.node_id] = False
+            self.transmitting[event.get_frame().get_source()] = False
             self.progagate_frame(event)
-            new_event = EventTXFinished(event.ts, event)
+
+            new_event = EventTXFinished(event.ts, event.get_frame())
             self.event_queue.push(new_event)
 
-            self.ongoing_frames.remove((event.node_id, event.get_info()))
+            self.ongoing_frames.remove(event.get_frame())
 
-        elif isinstance(event, EventChannelAssessment):
-            #print(self.transmitting, any(self.transmitting))
-            if not any(self.transmitting):
-                new_event = EventCollisionDomainFree(event.ts + 1, event.node_id, event.get_info())
-                self.event_queue.push(new_event)
-            else:
-                new_event = EventCollisionDomainBusy(event.ts + 1, event.node_id, event.get_info())
-                self.event_queue.push(new_event)
 
     def progagate_frame(self, event):
 
-        collisioners = event.get_info().get('collisions')
-        source_node = self.nodes[event.node_id]
+        collisioners = event.get_frame().get_collisions()
+        source_node = self.nodes[event.get_frame().get_source()]
+
         # I consider the receivers one by one (all the nodes except the source)
         for receiver in exclude(self.nodes.values(), source_node):
             # I also exclude from the receivers the collisioner because it was transmitting at the same time
@@ -85,5 +74,5 @@ class CollisionDomain:
 
                 # If the SNR of the source is higher than the SNR of the collisioners, the receiver will receive
                 if snr_emitter_receiver > snr_collisioners_receiver_max:
-                    new_event = EventRX(event.ts + 1, event, handler=receiver.id)
+                    new_event = EventRX(event.ts + 1, event.get_frame(), receiver.id)
                     self.event_queue.append(new_event)

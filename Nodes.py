@@ -1,8 +1,10 @@
 import re
+import sys
 
 import numpy
 
 from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventAckEnqueued, EventSecondAckEnqueued
+from Frame import Frame
 
 
 class Node(object):
@@ -26,6 +28,7 @@ class Node(object):
         self.data = []
         self.t1 = 10
         self.t2 = 1000
+
 
     def get_node_id(self):
         return self.id
@@ -76,27 +79,24 @@ class AlohaNode(Node):
     def __init__(self, id, event_queue, collision_domain):
         super(AlohaNode, self).__init__(id, event_queue, collision_domain)
         self.received = []
-        self.serial = 0
 
     def event_rx(self, event):
-        self.received.append((event.node_id, event.get_info()))
+        self.received.append(event.get_frame())
 
     def event_tx_finished(self, event):
         pass  # new_event = EventFreeCollisionDomain(event.ts + 1, event)
         # self.event_queue.push(new_event)
 
     def event_data_enqueued(self, event):
-        new_event = EventTXStarted(event.ts, event)
+        new_event = EventTXStarted(event.ts, event.get_frame())
         self.event_queue.push(new_event)
 
     def event_tx_started(self, event):
-        self.serial += 1
-        new_event = EventOccupyCollisionDomain(event.ts, event)
+        new_event = EventOccupyCollisionDomain(event.ts, event.get_frame())
         self.event_queue.push(new_event)
 
     def enqueue_new_data(self, event):
-        new_event = EventDataEnqueued(event.ts + self.get_next_ts(), event)  ### OJO
-        new_event.set_info(self.get_config())
+        new_event = EventDataEnqueued(event.ts + self.get_next_ts(), Frame(self))  ### OJO
         self.event_queue.push(new_event)
 
     def process_event(self, event):
@@ -153,7 +153,7 @@ class LoraNode(AlohaNode):
 class UserNode(LoraNode):
     def event_data_enqueued(self, event):
         super().event_data_enqueued(event)
-        # self.enqueue_new_data(event)
+        self.enqueue_new_data(event)
 
 
 class CafcoNode(UserNode):
@@ -183,12 +183,10 @@ class LoraGateway(LoraNode):
     def event_rx(self, event):
         super().event_rx(event)
 
-        new_event = EventAckEnqueued(event.ts + 1000, self.get_node_id(), info=self.get_config())
+        new_event = EventAckEnqueued(event.ts + 1000, Frame(self, type='ACK1'))
         self.event_queue.push(new_event)
-        print("etrer", event.get_config())
 
-        new_event = EventSecondAckEnqueued(event.ts + 2000,self.get_node_id(), info=self.get_config())
-
+        new_event = EventSecondAckEnqueued(event.ts + 2000, Frame(self, type='ACK2'))
         self.event_queue.push(new_event)
 
 

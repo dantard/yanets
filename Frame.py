@@ -1,21 +1,27 @@
 class Frame:
-    def __init__(self, ts, node, **kwargs):
+
+    serial = 0
+
+    def __init__(self, node, **kwargs):
         self.latitude = node.get_latlon()[0]
         self.longitude = node.get_latlon()[1]
         self.collisions = set()
-        self.data = node.get_data().copy()
+        self.data = str(node.get_data())
         self.type = kwargs.get('type', 'DATA')
-        self.ts = ts
         self.source = node.get_node_id()
         self.destination = kwargs.get('dest', None)
-        self.handler = kwargs.get('handler', node.get_node_id())
         self.info = node.get_config().copy()
+        self.serial = Frame.serial
+        Frame.serial += 1
 
-    def get_info(self):
+    def get_serial(self):
+        return self.serial
+
+    def get_info(self, param=None):
+        if param:
+            return self.info.get(param)
         return self.info
 
-    def get_ts(self):
-        return self.ts
 
     def get_source(self):
         return self.source
@@ -39,5 +45,3 @@ class Frame:
     def add_collision(self, node_id):
         self.collisions.add(node_id)
 
-    def get_handler(self):
-        return self.handler

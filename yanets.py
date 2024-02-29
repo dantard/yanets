@@ -10,6 +10,7 @@ import Nodes
 from CollisionDomain import CollisionDomain
 from EventQueue import EventQueue
 from Events import EventDataEnqueued, NodeEvent, CollisionDomainEvent
+from Frame import Frame
 from Nodes import LoraNode, LoraGateway, CafcoNode, UserNode
 import yaml
 from yaml.loader import SafeLoader
@@ -93,6 +94,7 @@ def main():
     for i in range(0, num_of_nodes):
         emitter = CafcoNode(i, event_queue, collision_domain)
         emitter.set_config(conf_data[i])
+        emitter.set_frame_generation_mode(Nodes.Node.MODE_RANDOM_UNIFORM, 100, 1000)
         nodes[emitter.id] = emitter
         # emitter.print()
 
@@ -108,16 +110,12 @@ def main():
     # Create first event for each node
     for i in [n.id for n in nodes.values() if isinstance(n, UserNode)]:
         ts = rng.exponential(1000 / 1)
-        # Random
-        # ts = numpy.random.uniform(1, 1)
-        #new_event = EventDataEnqueued(ts, i)
-        new_event = EventDataEnqueued(ts, nodes[i])
+        new_event = EventDataEnqueued(ts, Frame(nodes[i]))
         event_queue.push(new_event)
 
     # Main event loop
     simulated_events = 0
-
-    while event_queue.size() > 0 :
+    while event_queue.size() > 0 and simulated_events < 1000:
         event = event_queue.pop()
 
         if isinstance(event, CollisionDomainEvent):
@@ -125,22 +123,22 @@ def main():
             obj = " "
 
         elif isinstance(event, NodeEvent):
-            node_id = event.get_node_id()
-            nodes[node_id].process_event(event)
-            obj = "G" if isinstance(nodes[node_id], LoraGateway) else "N"
+            handler = event.get_handler()
+            nodes[handler].process_event(event)
+            obj = "G" if isinstance(nodes[handler], LoraGateway) else "N"
         else:
             obj = "?"
 
         for i, value in enumerate(collision_domain.get_transmitting()):
-            print(i if value else " ", end="")
+            print(str(i) + " " if value else "  ", end="")
 
-        # print("Processing event {} at ts:{}".format(type(event), event.get_ts()))
-        print("{:6d} {:21.12f} {} {:2d}|{:2d} {:30s} {} {:8.3f} {:8.3f} {}".format(simulated_events,
-            event.get_ts(), obj,
-            event.generator,event.get_node_id(),
-            event.__class__.__name__,
-            [1 if c else 0 for c in collision_domain.get_transmitting()],
-            event.get_latlon()[0], event.get_latlon()[1], event.get_info()))
+        if event.get_handler() != 10:
+            print("{:6d} {:21.12f} {} {:2d}|{:2d} {:30s} {:6d} {:4s} {} {:8.3f} {:8.3f} {}".format(simulated_events,
+                event.get_ts(), obj,
+                event.get_frame().get_source(), event.get_handler(),
+                event.__class__.__name__, event.get_frame().get_serial(), event.get_frame().get_type(),
+                [1 if c else 0 for c in collision_domain.get_transmitting()],
+                event.get_frame().get_latlon()[0], event.get_frame().get_latlon()[1], event.get_frame().get_info()), list(event.get_frame().get_collisions()))
         simulated_events += 1
 
 
