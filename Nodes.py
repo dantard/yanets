@@ -1,19 +1,20 @@
-import math
-import random
 import re
 
 import numpy
 
-from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventFreeCollisionDomain, EventChannelAssessment, \
-    EventCollisionDomainFree, EventCollisionDomainBusy, EventAckEnqueued, EventSecondAckEnqueued
-from lora import compute_lora_duration
+from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventAckEnqueued, EventSecondAckEnqueued
 
 
 class Node(object):
+    rng = None
 
-    MODE_RANDOM_EXPONENTIAL = 0 # lamba
-    MODE_FIXED = 1 # t1, t2
-    MODE_RANDOM_UNIFORM = 2 # t1, t2
+    @staticmethod
+    def set_rng(rng):
+        Node.rng = rng
+
+    MODE_RANDOM_EXPONENTIAL = 0  # lamba
+    MODE_FIXED = 1  # t1, t2
+    MODE_RANDOM_UNIFORM = 2  # t1, t2
 
     def __init__(self, id, event_queue, collision_domain):
         self.id = id
@@ -26,8 +27,11 @@ class Node(object):
         self.t1 = 10
         self.t2 = 1000
 
-    def get_id(self):
+    def get_node_id(self):
         return self.id
+
+    def get_latlon(self):
+        return self.latitude, self.longitude
 
     def process_event(self, event):
         pass
@@ -35,7 +39,6 @@ class Node(object):
     def set_latlon(self, lat, lon):
         self.latitude = float(lat)
         self.longitude = float(lon)
-
 
     def set_data(self, data):
         self.data = data
@@ -47,7 +50,7 @@ class Node(object):
         return numpy.sqrt((self.latitude - node.latitude) ** 2 + (self.longitude - node.longitude) ** 2)
 
     def get_config(self):
-        return {"latitude": self.latitude, "longitude": self.longitude}
+        return {}
 
     def get(self, key):
         return self.get_config().get(key)
@@ -59,13 +62,14 @@ class Node(object):
 
     def get_next_ts(self):
         if self.mode == Node.MODE_RANDOM_EXPONENTIAL:
-            return numpy.random.exponential(1000 / self.t1)
+            return Node.rng.exponential(1000 / self.t1)
         elif self.mode == Node.MODE_FIXED:
             return self.t1
         elif self.mode == Node.MODE_RANDOM_UNIFORM:
-            return numpy.random.uniform(self.t1, self.t2)
+            return Node.rng.uniform(self.t1, self.t2)
         else:
             return 0
+
 
 class AlohaNode(Node):
 
@@ -75,35 +79,23 @@ class AlohaNode(Node):
         self.serial = 0
 
     def event_rx(self, event):
-        self.received.append(event.get_info())
+        self.received.append((event.node_id, event.get_info()))
 
     def event_tx_finished(self, event):
-        new_event = EventFreeCollisionDomain(event.ts + 1, self.id, event.get_info())
-        self.event_queue.push(new_event)
+        pass  # new_event = EventFreeCollisionDomain(event.ts + 1, event)
+        # self.event_queue.push(new_event)
 
     def event_data_enqueued(self, event):
-        new_event = EventTXStarted(event.ts, self.id, event.get_info())
+        new_event = EventTXStarted(event.ts, event)
         self.event_queue.push(new_event)
 
     def event_tx_started(self, event):
-        new_event = EventOccupyCollisionDomain(event.ts, self.id, event.get_info())
-        self.event_queue.push(new_event)
         self.serial += 1
-
-        bw = event.inspect('bw')
-        sf = event.inspect('sf')
-        cr = event.inspect('codr')
-        ToA = compute_lora_duration(80, sf, bw, cr, 1)
-        #print(ToA)
-
-        new_event = EventTXFinished(event.ts + ToA, self.id, new_event.get_info())
-        new_event.add_info(self.get_config())
+        new_event = EventOccupyCollisionDomain(event.ts, event)
         self.event_queue.push(new_event)
-
-
 
     def enqueue_new_data(self, event):
-        new_event = EventDataEnqueued(event.ts + self.get_next_ts(), self.id)
+        new_event = EventDataEnqueued(event.ts + self.get_next_ts(), event)  ### OJO
         new_event.set_info(self.get_config())
         self.event_queue.push(new_event)
 
@@ -153,14 +145,16 @@ class LoraNode(AlohaNode):
         config.update({'freq': self.freq, 'sf': self.sf, 'bw': self.bw, 'codr': self.codr})
         return config
 
-
     def print(self):
-        print("tracker_id: {}, freq: {}, sf: {}, bw: {}, codr: {}, lon: {}, lat: {} data: {}".format(self.tracker_id, self.freq, self.sf, self.bw, self.codr, self.longitude, self.latitude, self.data))
+        print("tracker_id: {}, freq: {}, sf: {}, bw: {}, codr: {}, lon: {}, lat: {} data: {}".format(self.tracker_id, self.freq, self.sf, self.bw, self.codr,
+                                                                                                     self.longitude, self.latitude, self.data))
+
 
 class UserNode(LoraNode):
     def event_data_enqueued(self, event):
         super().event_data_enqueued(event)
-        self.enqueue_new_data(event)
+        # self.enqueue_new_data(event)
+
 
 class CafcoNode(UserNode):
     def __init__(self, id, event_queue, collision_domain):
@@ -171,31 +165,35 @@ class CafcoNode(UserNode):
 
         # Extracting sf and bw from the datr field
         sf, bw = None, None
-        if (datr:= info.get('datr')) is not None:
+        if (datr := info.get('datr')) is not None:
             matches = re.findall(pattern, datr[0])
             if matches:
                 sf = matches[0][0]
                 bw = matches[0][1]
-        if (freq:= info.get('freq')) is not None:
+        if (freq := info.get('freq')) is not None:
             freq = freq[0]
 
-        if (codr:= info.get('codr')) is not None:
+        if (codr := info.get('codr')) is not None:
             codr = codr[0]
         super().configure(info.get('trackerid'), freq, sf, bw, codr, info.get('longitude'), info.get('latitude'))
         self.set_data(info.get('data'))
 
+
 class LoraGateway(LoraNode):
     def event_rx(self, event):
         super().event_rx(event)
-        new_event = EventAckEnqueued(event.ts + 11, self.id )
-        info = self.get_config()
-        new_event.add_info(info)
+
+        new_event = EventAckEnqueued(event.ts + 1000, self.get_node_id(), info=self.get_config())
         self.event_queue.push(new_event)
-        new_event = EventSecondAckEnqueued(event.ts + 12, self.id)
-        new_event.add_info(event.get_info())
+        print("etrer", event.get_config())
+
+        new_event = EventSecondAckEnqueued(event.ts + 2000,self.get_node_id(), info=self.get_config())
+
         self.event_queue.push(new_event)
 
 
+
+'''
 class CSMANode(AlohaNode):
 
     def __init__(self, node_id, event_queue, collision_domain):
@@ -207,12 +205,12 @@ class CSMANode(AlohaNode):
         self.retry_limit = limit
 
     def event_data_enqueued(self, event):
-        new_event = EventChannelAssessment(event.ts, self.id, event.get_info())
+        new_event = EventChannelAssessment(event.ts, event)
         self.event_queue.push(new_event)
         self.enqueue_new_data(event)
 
     def event_collision_domain_free(self, event):
-        new_event = EventTXStarted(event.ts, self.id, event.get_info())
+        new_event = EventTXStarted(event.ts, event)
         self.event_queue.push(new_event)
 
     def event_collision_domain_busy(self, event):
@@ -235,3 +233,4 @@ class CSMANode(AlohaNode):
 
         elif isinstance(event, EventCollisionDomainBusy):
             self.event_collision_domain_busy(event)
+'''

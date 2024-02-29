@@ -3,7 +3,7 @@ class Event:
 
     def __init__(self, ts, info=None):
         self.ts = ts
-        self.info = dict() if info is None else info
+        self.info = dict() if info is None else info.copy()
         self.event_id = Event.event_counter
         Event.event_counter += 1
 
@@ -27,19 +27,39 @@ class Event:
 
     def add_info(self, info):
         self.info.update(info)
+    def get_event_id(self):
+        return self.event_id
 
 
 class InfoEvent(Event):
-    def __init__(self, ts, node_id, info=None):
-        super().__init__(ts, info)
-        self.node_id = node_id
-        self.longitude, self.latitude = None, None
-        self.data = None
+    def __init__(self, ts, obj, **kwargs):
+        if not type(obj) == int:
+            super().__init__(ts, kwargs.get('info', obj.get_config()))
+            self.generator = obj.get_node_id()
+            self.node_id = kwargs.get('handler', obj.get_node_id())
+            self.latitude, self.longitude = kwargs.get("latlon", obj.get_latlon())
+            self.data = kwargs.get('data', obj.get_data())
+        else:
+            super().__init__(ts, kwargs.get("info",{}))
+            self.node_id = obj
+            self.generator = obj
+            self.latitude, self.longitude = kwargs.get("latlon", (0, 0))
+            self.data = kwargs.get("data", [])
+
+    def get_config(self):
+        return self.info
+
+    def get_latlon(self):
+        return self.latitude, self.longitude
 
     def from_node(self, node):
         self.node_id = node.get_id()
         self.longitude, self.latitude = node.get_latlon()
         self.data = node.get_data()
+        self.info = node.get_config()
+
+    def get_data(self):
+        return self.data
 
     def get_node_id(self):
         return self.node_id
@@ -66,17 +86,25 @@ class EventChannelAssessment(CollisionDomainEvent):
 
 
 class EventDataEnqueued(NodeEvent):
-    pass
+    def __init__(self, ts, obj, **kwargs):
+        super().__init__(ts, obj, **kwargs)
+        self.info.update({"type": "DATA"})
 
 
 class EventTXStarted(NodeEvent):
     pass
 
 class EventAckEnqueued(EventDataEnqueued):
-    pass
+    def __init__(self, ts, obj, **kwargs):
+        super().__init__(ts, obj, **kwargs)
+        self.info.update({"type": "ACK1"})
+        self.info.update({"collisions": set()})
 
 class EventSecondAckEnqueued(EventDataEnqueued):
-    pass
+    def __init__(self, ts, obj, **kwargs):
+        super().__init__(ts, obj, **kwargs)
+        self.info.update({"type":"ACK2"})
+        self.info.update({"collisions": set()})
 
 class EventTXFinished(NodeEvent):
     pass

@@ -6,6 +6,7 @@ import sys
 
 import numpy
 
+import Nodes
 from CollisionDomain import CollisionDomain
 from EventQueue import EventQueue
 from Events import EventDataEnqueued, NodeEvent, CollisionDomainEvent
@@ -20,8 +21,8 @@ def main():
         description='Yet Another NETwork Simulator',
         epilog='Have fun!')
     parser.add_argument('-f', '--config-file', type=str, default=None, help='Configuration file')
-    parser.add_argument('-p', '--pose-file', type=str, default="poses.json", help='Configuration file')
-    parser.add_argument('-r', '--random-seed', type=int, default=0, help='Random seed')
+    parser.add_argument('-p', '--pose-file', type=str, default="poses3.json", help='Configuration file')
+    parser.add_argument('-r', '--random-seed', type=int, default=5, help='Random seed')
 
     args = parser.parse_args()
 
@@ -78,7 +79,9 @@ def main():
             conf_data.append(node_conf)
 
     # ### MAIN Program ###
-    numpy.random.seed(config.get("random_seed"))
+    rng = numpy.random.default_rng(args.random_seed)
+    Nodes.Node.set_rng(rng)
+    #numpy.random.seed(config.get("random_seed"))
 
     nodes = {}
 
@@ -104,17 +107,17 @@ def main():
 
     # Create first event for each node
     for i in [n.id for n in nodes.values() if isinstance(n, UserNode)]:
-        ts = numpy.random.exponential(1000 / 1)
+        ts = rng.exponential(1000 / 1)
         # Random
         # ts = numpy.random.uniform(1, 1)
-        new_event = EventDataEnqueued(ts, i)
-        new_event.set_info(nodes[i].get_config())
+        #new_event = EventDataEnqueued(ts, i)
+        new_event = EventDataEnqueued(ts, nodes[i])
         event_queue.push(new_event)
 
     # Main event loop
     simulated_events = 0
 
-    while event_queue.size() > 0 and simulated_events < 285:
+    while event_queue.size() > 0 :
         event = event_queue.pop()
 
         if isinstance(event, CollisionDomainEvent):
@@ -128,17 +131,22 @@ def main():
         else:
             obj = "?"
 
+        for i, value in enumerate(collision_domain.get_transmitting()):
+            print(i if value else " ", end="")
+
         # print("Processing event {} at ts:{}".format(type(event), event.get_ts()))
-        print("{:21.12f} {} {:3d} {:30s} {} {}".format(
+        print("{:6d} {:21.12f} {} {:2d}|{:2d} {:30s} {} {:8.3f} {:8.3f} {}".format(simulated_events,
             event.get_ts(), obj,
-            event.get_node_id(),
+            event.generator,event.get_node_id(),
             event.__class__.__name__,
             [1 if c else 0 for c in collision_domain.get_transmitting()],
-            event.get_info()))
+            event.get_latlon()[0], event.get_latlon()[1], event.get_info()))
         simulated_events += 1
 
-    for gw in nodes.values():
-        print(gw.id, len(gw.get_received()))
+
+
+    #for gw in nodes.values():
+    #    print(gw.id, len(gw.get_received()))
 
 
 if __name__ == "__main__":

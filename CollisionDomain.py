@@ -1,5 +1,6 @@
 from Events import EventRX, EventTXStarted, EventTXFinished, EventOccupyCollisionDomain, EventFreeCollisionDomain, EventChannelAssessment, \
     EventCollisionDomainFree, EventCollisionDomainBusy
+from lora import compute_lora_duration
 
 
 def exclude(lst, ex):
@@ -14,6 +15,9 @@ class CollisionDomain:
         self.event_queue = event_queue
         self.ongoing_frames = []
 
+    def get_transmitting(self):
+        return self.transmitting
+
     def set_nodes(self, nodes):
         self.nodes = nodes
         self.transmitting.extend([False] * len(nodes))
@@ -25,22 +29,30 @@ class CollisionDomain:
 
         if isinstance(event, EventOccupyCollisionDomain):
             self.transmitting[event.node_id] = True
-            self.ongoing_frames.append((event.get_node_id(), event.get_info()))
-            for node_id, info in self.ongoing_frames:
+            self.ongoing_frames.append((event.node_id, event.get_info()))
 
-                # For each frame in the collision domain queue, mark all other frames
-                # as collided if another transmission is started on the same channel
-                collisions = [f_node_id for f_node_id, f_info in self.ongoing_frames if f_node_id != node_id]
+            if event.get_info().get('collisions') is None:
+                event.get_info().update({'collisions': set()})
 
-                # Create the 'collissions' field if it doesn't exist
-                info['collisions'] = info.get('collisions', set())
+            for o_node_id, o_info in self.ongoing_frames:
+                if o_node_id != event.node_id:
+                    event.get_info().get('collisions').add(o_node_id)
+                    o_info.get('collisions').add(event.node_id)
 
-                # Upate the collisions field with the new collisions (notice that this is a set)
-                info['collisions'].update(collisions)
+
+            bw = event.inspect('bw')
+            sf = event.inspect('sf')
+            cr = event.inspect('codr')
+            ToA = compute_lora_duration(804, sf, bw, cr, 1)
+            new_event = EventFreeCollisionDomain(event.ts + ToA, event)
+            self.event_queue.push(new_event)
 
         elif isinstance(event, EventFreeCollisionDomain):
             self.transmitting[event.node_id] = False
             self.progagate_frame(event)
+            new_event = EventTXFinished(event.ts, event)
+            self.event_queue.push(new_event)
+
             self.ongoing_frames.remove((event.node_id, event.get_info()))
 
         elif isinstance(event, EventChannelAssessment):
@@ -56,13 +68,10 @@ class CollisionDomain:
 
         collisioners = event.get_info().get('collisions')
         source_node = self.nodes[event.node_id]
-
         # I consider the receivers one by one (all the nodes except the source)
         for receiver in exclude(self.nodes.values(), source_node):
-
             # I also exclude from the receivers the collisioner because it was transmitting at the same time
             if collisioners is not None and receiver.id not in collisioners:
-
                 # Compute for *that* receiver the SNR with the source
                 snr_emitter_receiver = 1 / source_node.distance(receiver)
 
@@ -76,5 +85,5 @@ class CollisionDomain:
 
                 # If the SNR of the source is higher than the SNR of the collisioners, the receiver will receive
                 if snr_emitter_receiver > snr_collisioners_receiver_max:
-                    new_event = EventRX(event.ts + 1, receiver.id, event.get_info())
+                    new_event = EventRX(event.ts + 1, event, handler=receiver.id)
                     self.event_queue.append(new_event)
