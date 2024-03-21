@@ -3,6 +3,7 @@ import sys
 
 import numpy
 
+import defaults
 from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventAckEnqueued, EventSecondAckEnqueued
 from Frame import Frame
 
@@ -10,13 +11,7 @@ from Frame import Frame
 class Node(object):
     rng = None
 
-    @staticmethod
-    def set_rng(rng):
-        Node.rng = rng
 
-    MODE_RANDOM_EXPONENTIAL = 0  # lamba
-    MODE_FIXED = 1  # t1, t2
-    MODE_RANDOM_UNIFORM = 2  # t1, t2
 
     def __init__(self, id, event_queue, collision_domain):
         self.id = id
@@ -24,7 +19,7 @@ class Node(object):
         self.collision_domain = collision_domain
         self.latitude = 0
         self.longitude = 0
-        self.mode = Node.MODE_RANDOM_EXPONENTIAL
+        self.mode = UserNode.MODE_RANDOM_EXPONENTIAL
         self.data = []
         self.t1 = 10
         self.t2 = 1000
@@ -64,11 +59,11 @@ class Node(object):
         self.t2 = p2
 
     def get_next_ts(self):
-        if self.mode == Node.MODE_RANDOM_EXPONENTIAL:
+        if self.mode == UserNode.MODE_RANDOM_EXPONENTIAL:
             return Node.rng.exponential(1000 / self.t1)
-        elif self.mode == Node.MODE_FIXED:
+        elif self.mode == UserNode.MODE_FIXED:
             return self.t1
-        elif self.mode == Node.MODE_RANDOM_UNIFORM:
+        elif self.mode == UserNode.MODE_RANDOM_UNIFORM:
             return Node.rng.uniform(self.t1, self.t2)
         else:
             return 0
@@ -131,6 +126,22 @@ class LoraNode(AlohaNode):
         self.sf = 7
         self.bw = 125
         self.codr = "4/5"
+        #
+        self.tx_power_dBm = 0
+        self.antenna_gain = 0
+        self.noise_figure = 0
+
+    # The parameters are passes through the kwargs dictionary
+    # and must have the same name as the attributes of the class
+    '''
+    def configure2(self, tracker_id, **kwargs):
+        param = ["tx_power_dBm", "antenna_gain", "noise_figure", "snr_min", "preamble_length", "packet_header"]
+        for p in param:
+            if p not in kwargs.keys():
+                raise ValueError("Parameter {} not found".format(p))
+
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     def configure(self, tracker_id, freq=None, sf=None, bw=None, codr=None, lon=None, lat=None):
         super().set_latlon(lat, lon)
@@ -139,6 +150,11 @@ class LoraNode(AlohaNode):
         self.sf = float(sf) if sf is not None else self.sf
         self.bw = float(bw) if bw is not None else self.bw
         self.codr = codr if codr is not None else self.codr
+    '''
+
+    def update_config(self, info):
+        self.latitude = float(info.get('latitude', self.latitude))
+        self.longitude = float(info.get('longitude', self.longitude))
 
     def get_config(self):
         config = super().get_config()
@@ -151,15 +167,58 @@ class LoraNode(AlohaNode):
 
 
 class UserNode(LoraNode):
+
+    @staticmethod
+    def set_rng(rng):
+        Node.rng = rng
+
+    MODE_RANDOM_EXPONENTIAL = 0  # lamba
+    MODE_FIXED = 1  # t1, t2
+    MODE_RANDOM_UNIFORM = 2  # t1, t2
+
+    def __init__(self, id, event_queue, collision_domain):
+        super(UserNode, self).__init__(id, event_queue, collision_domain)
+        self.traffic = defaults.traffic
+        self.G_dB = defaults.G_dB
+        self.SNR_min = defaults.SNR_min
+
     def event_data_enqueued(self, event):
         super().event_data_enqueued(event)
         self.enqueue_new_data(event)
+
+    def update_config(self, info):
+        super().update_config(info)
+
+        self.data = info.get('data', self.data)
+
+        freq = info.get('freq', self.freq)
+        self.freq = float(freq[0] if type(freq) is list else freq)
+
+        codr = info.get('codr', self.codr)
+        self.codr = codr[0] if type(codr) is list else codr
+
+        if (datr:= info.get("datr")) is not None:
+            datr = datr[0] if type(datr) is list else datr
+            pattern = r"SF(\d+)BW(\d+)"
+            matches = re.findall(pattern, datr)
+            if matches:
+                self.sf = float(matches[0][0])
+                self.bw = float(matches[0][1])
+
+        self.tx_power_dBm = float(info.get('tx_power_dBm', self.tx_power_dBm))
+        self.antenna_gain = float(info.get('antenna_gain', self.antenna_gain))
+        self.noise_figure = float(info.get('noise_figure', self.noise_figure))
+        self.G_dB = float(info.get('G_dB', self.G_dB))
+        self.SNR_min = info.get('SNR_min', self.SNR_min)
+        self.traffic = info.get('traffic', self.traffic)
 
 
 class CafcoNode(UserNode):
     def __init__(self, id, event_queue, collision_domain):
         super().__init__(id, event_queue, collision_domain)
 
+
+    '''
     def set_config(self, info):
         pattern = r"SF(\d+)BW(\d+)"
 
@@ -177,17 +236,26 @@ class CafcoNode(UserNode):
             codr = codr[0]
         super().configure(info.get('trackerid'), freq, sf, bw, codr, info.get('longitude'), info.get('latitude'))
         self.set_data(info.get('data'))
+    '''
+
+
+
+
 
 
 class LoraGateway(LoraNode):
+    def __init__(self, id, event_queue, collision_domain):
+        super().__init__(id, event_queue, collision_domain)
+        self.snr_min = 0
+
     def event_rx(self, event):
         super().event_rx(event)
 
-        new_event = EventAckEnqueued(event.ts + 1000, Frame(self, type='ACK1'))
-        self.event_queue.push(new_event)
+        #new_event = EventAckEnqueued(event.ts + 1000, Frame(self, type='ACK1'))
+        #self.event_queue.push(new_event)
 
-        new_event = EventSecondAckEnqueued(event.ts + 2000, Frame(self, type='ACK2'))
-        self.event_queue.push(new_event)
+        #new_event = EventSecondAckEnqueued(event.ts + 2000, Frame(self, type='ACK2'))
+        #self.event_queue.push(new_event)
 
 
 

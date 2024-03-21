@@ -21,87 +21,68 @@ def main():
         prog='Yanets',
         description='Yet Another NETwork Simulator',
         epilog='Have fun!')
-    parser.add_argument('-f', '--config-file', type=str, default=None, help='Configuration file')
-    parser.add_argument('-p', '--pose-file', type=str, default="poses3.json", help='Configuration file')
+    parser.add_argument('-f', '--config-file', type=str, default=None, help='Configuration file', required=True)
+    parser.add_argument('-p', '--pose-file', type=str, default="poses3.json", help='Configuration file', required=True)
     parser.add_argument('-r', '--random-seed', type=int, default=5, help='Random seed')
 
     args = parser.parse_args()
 
-    # ### READ CONFIG FROM FILE ###
-    if args.config_file is not None:
-        try:
-            with open(args.config_file) as f:
-                config = yaml.load(f, Loader=SafeLoader)
-        except FileNotFoundError:
-            print("No config file found. Exiting.")
-            exit(1)
-    else:
-        config = {}
+    # Read general config from file
+    try:
+        with open(args.config_file) as f:
+            config = yaml.load(f, Loader=SafeLoader)
+    except FileNotFoundError:
+        print("No config file found. Exiting.")
+        exit(1)
 
-    # ### READ POSES FROM FILE ###
-    poses = []
+    global_conf = config.get("global")
+    if global_conf is None:
+        print("No global configuration found. Exiting.")
+        exit(1)
 
-    num_of_gw = config.get('num_of_gateway', 2)
+    num_ed = global_conf.get("num_ed", 5)
+    num_gw = global_conf.get("num_gw", 2)
 
-    if args.pose_file is not None:
-        try:
-            with open(args.pose_file) as json_file:
-                conf_data = json.load(json_file)
-                num_of_nodes = len(conf_data)
+    # Read position config from file
+    try:
+        with open(args.pose_file) as json_file:
+            conf_data = json.load(json_file)
+            num_of_nodes = len(conf_data)
 
-        except FileNotFoundError:
-            print("No pose file found. Exiting.")
-            exit(1)
-    else:
-        # Define varibale and their default values
-        node_conf = {
-            "_id": {
-                "$oid": "64c634a0c6976e465b191e5d"
-            },
-            "trackerid": "bb000008",
-            "longitude": "-2.6147869",
-            "latitude": "42.9655609",
-            "PHYPayload": "40080000bb000b02020d82e75f04b2a1b2878859af34612e",
-            "content": "QAgAALsACwICDYLnXwSyobKHiFmvNGEu",
-            "data": "bb1201422bdcbcc02758ab",
-            "freq": [
-                "868.5"
-            ],
-            "datr": [
-                "SF7BW125"
-            ],
-            "codr": [
-                "4/5"
-            ]
-        }
-        num_of_nodes = config.get('num_of_nodes', 4)
-        conf_data = []
-        for i in range(num_of_nodes):
-            conf_data.append(node_conf)
+    except FileNotFoundError:
+        print("No pose file found. Exiting.")
+        exit(1)
 
     # ### MAIN Program ###
     rng = numpy.random.default_rng(args.random_seed)
-    Nodes.Node.set_rng(rng)
-    #numpy.random.seed(config.get("random_seed"))
-
-    nodes = {}
+    Nodes.UserNode.set_rng(rng)
 
     # Prepare Nodes
+    nodes = {}
+
+    # Prepare objects
     event_queue = EventQueue()
     collision_domain = CollisionDomain(event_queue)
 
     # Create nodes
-    for i in range(0, num_of_nodes):
+    ed_config = config.get("node", {})
+    end_devices = config.get("nodes", [])
+    for i in range(0, num_ed):
         emitter = CafcoNode(i, event_queue, collision_domain)
-        emitter.set_config(conf_data[i])
-        emitter.set_frame_generation_mode(Nodes.Node.MODE_RANDOM_UNIFORM, 100, 1000)
+        emitter.update_config(ed_config)
+        if len(end_devices) > i:
+            emitter.update_config(end_devices[i])
+        emitter.update_config(conf_data[i])
         nodes[emitter.id] = emitter
-        # emitter.print()
 
     # Create gateways
-    for i in range(num_of_nodes, num_of_nodes + num_of_gw):
-        gw = LoraGateway(i, event_queue, collision_domain)
-        gw.set_latlon(poses[i][0], poses[i][1]) if len(poses) > i else gw.set_latlon(i, i)
+    gw_config = config.get("gateway", {})
+    gateways = config.get("gateways",  [])
+    for i in range(num_gw):
+        gw = LoraGateway(num_ed + i, event_queue, collision_domain)
+        gw.set_latlon(gateways[i]['latitude'], gateways[i]['longitude'])
+        gw.update_config(gw_config)
+        gw.update_config(gateways[i])
         nodes[gw.id] = gw
 
     # Add nodes to collision domain
