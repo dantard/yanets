@@ -1,0 +1,41 @@
+[{
+  "_id": {
+    "$oid": "64c634a0c6976e465b191e5d"
+  },
+  "trackerid": "bb000008",
+  "longitude": "-2.6147869",
+  "latitude": "42.9655609",
+  "PHYPayload": "40080000bb000b02020d82e75f04b2a1b2878859af34612e",
+  "content": "QAgAALsACwICDYLnXwSyobKHiFmvNGEu",
+  "data": "bb1201422bdcbcc02758ab",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634a8c6976e465b191e76"
+  },
+  "trackerid": "bb000019",
+  "longitude": "-2.6225784",
+  "latitude": "42.9645653",
+  "PHYPayload": "40190000bb000b02027fcc64bf35ab2e46503b84a0480748",
+  "content": "QBkAALsACwICf8xkvzWrLkZQO4SgSAdI",
+  "data": "bb1201422bdbb7c027d853",
+  "freq": [
+    "868.3"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+}
+]

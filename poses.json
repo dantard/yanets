@@ -1,0 +1,440 @@
+[{
+  "_id": {
+    "$oid": "64c634a0c6976e465b191e5d"
+  },
+  "trackerid": "bb000008",
+  "longitude": "-2.6147869",
+  "latitude": "42.9655609",
+  "PHYPayload": "40080000bb000b02020d82e75f04b2a1b2878859af34612e",
+  "content": "QAgAALsACwICDYLnXwSyobKHiFmvNGEu",
+  "data": "bb1201422bdcbcc02758ab",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634a0c6976e465b191e69"
+  },
+  "trackerid": "bb000010",
+  "longitude": "-2.6129634",
+  "latitude": "42.9636955",
+  "PHYPayload": "40100000bb000c02028f9eb9084bd0746b5426cb059e2a24",
+  "content": "QBAAALsADAICj565CEvQdGtUJssFniok",
+  "data": "bb1201422bdad3c0273acb",
+  "freq": [
+    "868.3"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634a8c6976e465b191e76"
+  },
+  "trackerid": "bb000019",
+  "longitude": "-2.6225784",
+  "latitude": "42.9645653",
+  "PHYPayload": "40190000bb000b02027fcc64bf35ab2e46503b84a0480748",
+  "content": "QBkAALsACwICf8xkvzWrLkZQO4SgSAdI",
+  "data": "bb1201422bdbb7c027d853",
+  "freq": [
+    "868.3"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634a8c6976e465b191e83"
+  },
+  "trackerid": "bb000016",
+  "longitude": "-2.6177201",
+  "latitude": "42.9678230",
+  "PHYPayload": "40160000bb000a0202a2503a100f5d923b4eff231fbb7519",
+  "content": "QBYAALsACgIColA6EA9dkjtO/yMfu3UZ",
+  "data": "bb1201422bdf0dc02788ba",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634a9c6976e465b191e8f"
+  },
+  "trackerid": "bb000027",
+  "longitude": "-2.6239517",
+  "latitude": "42.9701424",
+  "PHYPayload": "40270000bb000b02028f463534a42b4d3cad15cb3bedbdeb",
+  "content": "QCcAALsACwICj0Y1NKQrTTytFcs77b3r",
+  "data": "bb1201422be16dc027eed3",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634a9c6976e465b191e9f"
+  },
+  "trackerid": "bb000018",
+  "longitude": "-2.6200135",
+  "latitude": "42.9645767",
+  "PHYPayload": "40180000bb000b0202f3441cfc8a9f6953c8076168767130",
+  "content": "QBgAALsACwIC80Qc/IqfaVPIB2FodnEw",
+  "data": "bb1201422bdbbac027ae4d",
+  "freq": [
+    "868.1"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634a9c6976e465b191ea8"
+  },
+  "trackerid": "bb000024",
+  "longitude": "-2.6226499",
+  "latitude": "42.9694901",
+  "PHYPayload": "40240000bb000b02025aa40b2992970f4efc63ac62dce84f",
+  "content": "QCQAALsACwICWqQLKZKXD078Y6xi3OhP",
+  "data": "bb1201422be0c2c027d97f",
+  "freq": [
+    "868.3"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634a9c6976e465b191eb6"
+  },
+  "trackerid": "bb000012",
+  "longitude": "-2.6133568",
+  "latitude": "42.9641457",
+  "PHYPayload": "40120000bb000c0202cf5f420909dcfde71d51729de7c292",
+  "content": "QBIAALsADAICz19CCQnc/ecdUXKd58KS",
+  "data": "bb1203422bdb49c027413d",
+  "freq": [
+    "868.1"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634aac6976e465b191ec3"
+  },
+  "trackerid": "bb000011",
+  "longitude": "-2.6113865",
+  "latitude": "42.9652023",
+  "PHYPayload": "40110000bb000b0202905d21c1027d74d3fce75056e21269",
+  "content": "QBEAALsACwICkF0hwQJ9dNP851BW4hJp",
+  "data": "bb1202422bdc5ec02720f5",
+  "freq": [
+    "868.3"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b1c6976e465b191ed0"
+  },
+  "trackerid": "bb000025",
+  "longitude": "-2.6233516",
+  "latitude": "42.9685860",
+  "PHYPayload": "40250000bb000a0202a262cf6d7a026bcfff855bd905c416",
+  "content": "QCUAALsACgIComLPbXoCa8//hVvZBcQW",
+  "data": "bb1201422bdfd5c027e4fe",
+  "freq": [
+    "868.1"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b1c6976e465b191edd"
+  },
+  "trackerid": "bb000013",
+  "longitude": "-2.6142983",
+  "latitude": "42.9647713",
+  "PHYPayload": "40130000bb000b02021052f2f8a22d88289a5d1ab2a4f836",
+  "content": "QBMAALsACwICEFLy+KItiCiaXRqypPg2",
+  "data": "bb1203422bdbedc02750aa",
+  "freq": [
+    "868.1"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b1c6976e465b191eea"
+  },
+  "trackerid": "bb000021",
+  "longitude": "-2.6222398",
+  "latitude": "42.9678078",
+  "PHYPayload": "40210000bb000b02027dae50bb951aae9b10f5ef29758069",
+  "content": "QCEAALsACwICfa5Qu5UarpsQ9e8pdYBp",
+  "data": "bb1201422bdf09c027d2c7",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b1c6976e465b191ef7"
+  },
+  "trackerid": "bb000017",
+  "longitude": "-2.6194067",
+  "latitude": "42.9667549",
+  "PHYPayload": "40170000bb000a0202a79e8fb3efc90c7ec9162c41228e8c",
+  "content": "QBcAALsACgICp56Ps+/JDH7JFixBIo6M",
+  "data": "bb1201422bddf5c027a45c",
+  "freq": [
+    "868.3"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b1c6976e465b191f04"
+  },
+  "trackerid": "bb000028",
+  "longitude": "-2.6213834",
+  "latitude": "42.9690933",
+  "PHYPayload": "40280000bb000b02023832875bc67b78b3bda059df6bfcad",
+  "content": "QCgAALsACwICODKHW8Z7eLO9oFnfa/yt",
+  "data": "bb1201422be05ac027c4bf",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b2c6976e465b191f11"
+  },
+  "trackerid": "bb000026",
+  "longitude": "-2.6240098",
+  "latitude": "42.9684410",
+  "PHYPayload": "40260000bb000a0202dd03569827a15cd5d1eda5d24b5f2d",
+  "content": "QCYAALsACgIC3QNWmCehXNXR7aXSS18t",
+  "data": "bb1201422bdfafc027efc7",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b2c6976e465b191f1d"
+  },
+  "trackerid": "bb000023",
+  "longitude": "-2.6202483",
+  "latitude": "42.9665298",
+  "PHYPayload": "40230000bb000b020253f3763a44247c0b89051e63172528",
+  "content": "QCMAALsACwICU/N2OkQkfAuJBR5jFyUo",
+  "data": "bb1202422bddbac027b226",
+  "freq": [
+    "868.1"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b6c6976e465b191f2a"
+  },
+  "trackerid": "bb000007",
+  "longitude": "-2.6170049",
+  "latitude": "42.9644356",
+  "PHYPayload": "40070000bb00db01022ca1dd5534695f2a71fc37982ae390",
+  "content": "QAcAALsA2wECLKHdVTRpXypx/DeYKuOQ",
+  "data": "bb1201422bdb95c0277d02",
+  "freq": [
+    "868.3"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b7c6976e465b191f37"
+  },
+  "trackerid": "bb000022",
+  "longitude": "-2.6202266",
+  "latitude": "42.9650955",
+  "PHYPayload": "40220000bb000b0202cff0704b4d051c85a18bc10337c49f",
+  "content": "QCIAALsACwICz/BwS00FHIWhi8EDN8Sf",
+  "data": "bb1201422bdc42c027b1cb",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b7c6976e465b191f43"
+  },
+  "trackerid": "bb000009",
+  "longitude": "-2.6157949",
+  "latitude": "42.9631271",
+  "PHYPayload": "40090000bb000c020213c977d4893148b3d1ee76382725a4",
+  "content": "QAkAALsADAICE8l31IkxSLPR7nY4JyWk",
+  "data": "bb1203422bda3ec027692f",
+  "freq": [
+    "868.5"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634b9c6976e465b191f4f"
+  },
+  "trackerid": "bb000015",
+  "longitude": "-2.6141117",
+  "latitude": "42.9674873",
+  "PHYPayload": "40150000bb000a02021e6855dbc9f28d321a369f9c5abf31",
+  "content": "QBUAALsACgICHmhV28nyjTIaNp+cWr8x",
+  "data": "bb1201422bdeb5c0274d9b",
+  "freq": [
+    "868.1"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634bdc6976e465b191f5c"
+  },
+  "trackerid": "bb000020",
+  "longitude": "-2.6230500",
+  "latitude": "42.9655685",
+  "PHYPayload": "40200000bb000b0202cc49987970f4d84f7d36c8563b2d96",
+  "content": "QCAAALsACwICzEmYeXD02E99NshWOy2W",
+  "data": "bb1201422bdcbec027e00d",
+  "freq": [
+    "868.1"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+},
+{
+  "_id": {
+    "$oid": "64c634bdc6976e465b191f68"
+  },
+  "trackerid": "bb000029",
+  "longitude": "-2.6192715",
+  "latitude": "42.9684067",
+  "PHYPayload": "40290000bb000b020278ebfccd2d65874f931adb5bf2f32b",
+  "content": "QCkAALsACwICeOv8zS1lh0+TGttb8vMr",
+  "data": "bb1200422bdfa6c027a225",
+  "freq": [
+    "868.3"
+  ],
+  "datr": [
+    "SF7BW125"
+  ],
+  "codr": [
+    "4/5"
+  ]
+}]
