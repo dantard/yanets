@@ -4,7 +4,7 @@ import sys
 import numpy
 
 import defaults
-from Events import EventDataEnqueued, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventAckEnqueued, EventSecondAckEnqueued
+from Events import EventNewData, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventAckEnqueued, EventSecondAckEnqueued
 from Frame import Frame
 
 
@@ -19,11 +19,7 @@ class Node(object):
         self.collision_domain = collision_domain
         self.latitude = 0
         self.longitude = 0
-        self.mode = UserNode.MODE_RANDOM_EXPONENTIAL
-        self.data = []
-        self.t1 = 10
-        self.t2 = 1000
-
+        # self.data = None
 
     def get_node_id(self):
         return self.id
@@ -53,22 +49,6 @@ class Node(object):
     def get(self, key):
         return self.get_config().get(key)
 
-    def set_frame_generation_mode(self, mode, p1, p2=None):
-        self.mode = mode
-        self.t1 = p1
-        self.t2 = p2
-
-    def get_next_ts(self):
-        if self.mode == UserNode.MODE_RANDOM_EXPONENTIAL:
-            return Node.rng.exponential(1000 / self.t1)
-        elif self.mode == UserNode.MODE_FIXED:
-            return self.t1
-        elif self.mode == UserNode.MODE_RANDOM_UNIFORM:
-            return Node.rng.uniform(self.t1, self.t2)
-        else:
-            return 0
-
-
 class AlohaNode(Node):
 
     def __init__(self, id, event_queue, collision_domain):
@@ -91,14 +71,15 @@ class AlohaNode(Node):
         self.event_queue.push(new_event)
 
     def enqueue_new_data(self, event):
-        new_event = EventDataEnqueued(event.ts + self.get_next_ts(), Frame(self))  ### OJO
+        # TODO! This is a very simple implementation
+        new_event = EventNewData(event.ts + 1, Frame(self))  ### OJO
         self.event_queue.push(new_event)
 
     def process_event(self, event):
 
         # print("Node %d: processing event %s" % (self.id, type(event)))
 
-        if isinstance(event, EventDataEnqueued):
+        if isinstance(event, EventNewData):
             self.event_data_enqueued(event)
 
         elif isinstance(event, EventTXStarted):
@@ -166,7 +147,7 @@ class LoraNode(AlohaNode):
                                                                                                      self.longitude, self.latitude, self.data))
 
 
-class UserNode(LoraNode):
+class LoraEndDevice(LoraNode):
 
     @staticmethod
     def set_rng(rng):
@@ -177,10 +158,11 @@ class UserNode(LoraNode):
     MODE_RANDOM_UNIFORM = 2  # t1, t2
 
     def __init__(self, id, event_queue, collision_domain):
-        super(UserNode, self).__init__(id, event_queue, collision_domain)
+        super(LoraEndDevice, self).__init__(id, event_queue, collision_domain)
         self.traffic = defaults.traffic
         self.G_dB = defaults.G_dB
         self.SNR_min = defaults.SNR_min
+        self.data = []
 
     def event_data_enqueued(self, event):
         super().event_data_enqueued(event)
@@ -213,7 +195,7 @@ class UserNode(LoraNode):
         self.traffic = info.get('traffic', self.traffic)
 
 
-class CafcoNode(UserNode):
+class CafcoNode(LoraEndDevice):
     def __init__(self, id, event_queue, collision_domain):
         super().__init__(id, event_queue, collision_domain)
 

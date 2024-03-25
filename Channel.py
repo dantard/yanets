@@ -8,7 +8,7 @@ def exclude(lst, ex):
     return [x for x in lst if x != ex]
 
 
-class CollisionDomain:
+class Channel:
 
     def __init__(self, event_queue):
         self.nodes = {}

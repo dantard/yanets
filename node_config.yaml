@@ -2,8 +2,6 @@ global:
   sim_duration: 100
   sim_seed: 1
   sim_output: "output.csv"
-  num_ed: 2
-  num_gw: 2
 
 channel:
   channel_model:
@@ -18,10 +16,10 @@ channel:
   - SF8:  [-13, -13, -12, -11, 1, -11]
   - SF7:  [-9, -9, -9, -9, -8, 1]
 
-node:
+end_device_default:
   traffic:
     mode: fixed
-    period: 1
+    period: 10
     t_init: 10
   tx_power_dBm: 14
   G_dB: 3
@@ -33,7 +31,7 @@ node:
     - SF8: -10
     - SF7: -7.5
 
-gateway:
+gateway_default:
   G_dB: 3
   NF_dB: 4
   SNR_min:

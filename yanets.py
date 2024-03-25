@@ -7,11 +7,11 @@ import sys
 import numpy
 
 import Nodes
-from CollisionDomain import CollisionDomain
+from Channel import Channel
 from EventQueue import EventQueue
-from Events import EventDataEnqueued, NodeEvent, CollisionDomainEvent
+from Events import EventNewData, NodeEvent, CollisionDomainEvent
 from Frame import Frame
-from Nodes import LoraNode, LoraGateway, CafcoNode, UserNode
+from Nodes import LoraNode, LoraGateway, CafcoNode, LoraEndDevice
 import yaml
 from yaml.loader import SafeLoader
 
@@ -21,15 +21,15 @@ def main():
         prog='Yanets',
         description='Yet Another NETwork Simulator',
         epilog='Have fun!')
-    parser.add_argument('-f', '--config-file', type=str, default=None, help='Configuration file', required=True)
-    parser.add_argument('-p', '--pose-file', type=str, default="poses3.json", help='Configuration file', required=True)
+    parser.add_argument('-f', '--config', type=str, default=None, help='Configuration file', required=True)
+    parser.add_argument('-n', '--end-devices-config', type=str, default="poses3.json", help='Configuration file', required=True)
     parser.add_argument('-r', '--random-seed', type=int, default=5, help='Random seed')
 
     args = parser.parse_args()
 
     # Read general config from file
     try:
-        with open(args.config_file) as f:
+        with open(args.config) as f:
             config = yaml.load(f, Loader=SafeLoader)
     except FileNotFoundError:
         print("No config file found. Exiting.")
@@ -40,67 +40,73 @@ def main():
         print("No global configuration found. Exiting.")
         exit(1)
 
-    num_ed = global_conf.get("num_ed", 5)
-    num_gw = global_conf.get("num_gw", 2)
-
     # Read position config from file
     try:
-        with open(args.pose_file) as json_file:
-            conf_data = json.load(json_file)
-            num_of_nodes = len(conf_data)
+        with open(args.end_devices_config) as json_file:
+            end_devices_conf = json.load(json_file)
 
     except FileNotFoundError:
-        print("No pose file found. Exiting.")
+        print("No nodes config file found. Exiting.")
+        exit(1)
+
+    num_ed = global_conf.get("num_ed", len(end_devices_conf))
+    num_gw = global_conf.get("num_gw", len(config.get("gateways", [])))
+
+    if num_ed == 0 or num_gw == 0:
+        print("No nodes or gateways defined. Exiting.")
         exit(1)
 
     # ### MAIN Program ###
     rng = numpy.random.default_rng(args.random_seed)
-    Nodes.UserNode.set_rng(rng)
+    Nodes.LoraEndDevice.set_rng(rng)
 
     # Prepare Nodes
     nodes = {}
 
     # Prepare objects
     event_queue = EventQueue()
-    collision_domain = CollisionDomain(event_queue)
+    channel = Channel(event_queue)
 
     # Create nodes
-    ed_config = config.get("node", {})
-    end_devices = config.get("nodes", [])
+    end_device_default = config.get("end_device_default", {})
+    end_devices = config.get("end_devices", [])
     for i in range(0, num_ed):
-        emitter = CafcoNode(i, event_queue, collision_domain)
-        emitter.update_config(ed_config)
+        emitter = LoraEndDevice(i, event_queue, channel)
+        emitter.update_config(end_device_default)
         if len(end_devices) > i:
             emitter.update_config(end_devices[i])
-        emitter.update_config(conf_data[i])
+        emitter.update_config(end_devices_conf[i])
         nodes[emitter.id] = emitter
 
     # Create gateways
-    gw_config = config.get("gateway", {})
+    gateway_default = config.get("gateway_default", {})
     gateways = config.get("gateways",  [])
     for i in range(num_gw):
-        gw = LoraGateway(num_ed + i, event_queue, collision_domain)
-        gw.set_latlon(gateways[i]['latitude'], gateways[i]['longitude'])
-        gw.update_config(gw_config)
+        gw = LoraGateway(num_ed + i, event_queue, channel)
+        gw.update_config(gateway_default)
         gw.update_config(gateways[i])
         nodes[gw.id] = gw
 
-    # Add nodes to collision domain
-    collision_domain.set_nodes(nodes)
+    # Add nodes to channel
+    channel.set_nodes(nodes)
 
     # Create first event for each node
-    for i in [n.id for n in nodes.values() if isinstance(n, UserNode)]:
-        ts = rng.exponential(1000 / 1)
-        new_event = EventDataEnqueued(ts, Frame(nodes[i]))
+    for i in [n.id for n in nodes.values() if isinstance(n, LoraEndDevice)]:
+        ts = i
+        new_event = EventNewData(ts, nodes[i])
         event_queue.push(new_event)
 
     # Main event loop
     simulated_events = 0
-    while event_queue.size() > 0 and simulated_events < 1000:
+    while event_queue.size() > 0:
+
         event = event_queue.pop()
 
+        if event.get_ts() > global_conf.get('sim_duration'):
+            break
+
         if isinstance(event, CollisionDomainEvent):
-            collision_domain.process_event(event)
+            channel.process_event(event)
             obj = " "
 
         elif isinstance(event, NodeEvent):
@@ -110,7 +116,7 @@ def main():
         else:
             obj = "?"
 
-        for i, value in enumerate(collision_domain.get_transmitting()):
+        for i, value in enumerate(channel.get_transmitting()):
             print(str(i) + " " if value else "  ", end="")
 
         if event.get_handler() != 10:
@@ -118,7 +124,7 @@ def main():
                 event.get_ts(), obj,
                 event.get_frame().get_source(), event.get_handler(),
                 event.__class__.__name__, event.get_frame().get_serial(), event.get_frame().get_type(),
-                [1 if c else 0 for c in collision_domain.get_transmitting()],
+                [1 if c else 0 for c in channel.get_transmitting()],
                 event.get_frame().get_latlon()[0], event.get_frame().get_latlon()[1], event.get_frame().get_info()), list(event.get_frame().get_collisions()))
         simulated_events += 1
 
