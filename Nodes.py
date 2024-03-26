@@ -11,8 +11,6 @@ from Frame import Frame
 class Node(object):
     rng = None
 
-
-
     def __init__(self, id, event_queue, collision_domain):
         self.id = id
         self.event_queue = event_queue
@@ -46,6 +44,7 @@ class Node(object):
     def get(self, key):
         return self.get_config().get(key)
 
+
 class AlohaNode(Node):
 
     def __init__(self, id, event_queue, collision_domain):
@@ -56,7 +55,7 @@ class AlohaNode(Node):
         self.received.append(event.get_frame())
 
     def event_tx_finished(self, event):
-        new_event = EventLeaveChannel(event.ts, event.get_frame())
+        new_event = EventLeaveChannel(event.ts, event.get_frame(), self, self.collision_domain)
         self.event_queue.push(new_event)
 
     def event_new_data(self, event):
@@ -65,12 +64,7 @@ class AlohaNode(Node):
         self.event_queue.push(new_event)
 
     def event_tx_started(self, event):
-        new_event = EventEnterChannel(event.ts, Frame(self))
-        self.event_queue.push(new_event)
-
-    def enqueue_new_data(self, event):
-        # TODO! This is a very simple implementation
-        new_event = EventNewData(event.ts + 1, self, Frame(self))  ### OJO
+        new_event = EventEnterChannel(event.ts, Frame(self), self, self.collision_domain)
         self.event_queue.push(new_event)
 
     def process_event(self, event):
@@ -165,7 +159,8 @@ class LoraEndDevice(LoraNode):
         self.traffic_period = defaults.traffic_period
         self.traffic_t_init = defaults.traffic_t_init
 
-
+    def get_t_init(self):
+        return self.traffic_t_init
 
     def event_new_data(self, event):
         if self.busy:
@@ -181,7 +176,6 @@ class LoraEndDevice(LoraNode):
         super().event_tx_finished(event)
         self.busy = False
 
-
     def update_config(self, info):
         super().update_config(info)
 
@@ -193,7 +187,7 @@ class LoraEndDevice(LoraNode):
         codr = info.get('codr', self.codr)
         self.codr = codr[0] if type(codr) is list else codr
 
-        if (datr:= info.get("datr")) is not None:
+        if (datr := info.get("datr")) is not None:
             datr = datr[0] if type(datr) is list else datr
             pattern = r"SF(\d+)BW(\d+)"
             matches = re.findall(pattern, datr)
@@ -207,11 +201,10 @@ class LoraEndDevice(LoraNode):
         self.G_dB = float(info.get('G_dB', self.G_dB))
         self.SNR_min = info.get('SNR_min', self.SNR_min)
 
-        if (traffic:=info.get('traffic')) is not None:
+        if (traffic := info.get('traffic')) is not None:
             self.traffic_mode = traffic.get('mode', self.traffic_mode)
             self.traffic_period = traffic.get('period', self.traffic_period)
             self.traffic_t_init = traffic.get('t_init', self.traffic_t_init)
-
 
 
 class LoraGateway(LoraNode):
@@ -222,10 +215,8 @@ class LoraGateway(LoraNode):
     def event_rx(self, event):
         super().event_rx(event)
 
-        #new_event = EventAckEnqueued(event.ts + 1000, Frame(self, type='ACK1'))
-        #self.event_queue.push(new_event)
+        # new_event = EventAckEnqueued(event.ts + 1000, Frame(self, type='ACK1'))
+        # self.event_queue.push(new_event)
 
-        #new_event = EventSecondAckEnqueued(event.ts + 2000, Frame(self, type='ACK2'))
-        #self.event_queue.push(new_event)
-
-
+        # new_event = EventSecondAckEnqueued(event.ts + 2000, Frame(self, type='ACK2'))
+        # self.event_queue.push(new_event)

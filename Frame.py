@@ -1,5 +1,3 @@
-
-
 class Frame:
     class Reason:
         NO_SNR = 0
@@ -13,16 +11,17 @@ class Frame:
         def add_collision(self, node_id):
             self.collision_with.append(node_id)
 
+
         def __str__(self):
-            return str(self.received) + ' ' + str(self.error_reason) + ' ' + str(self.collision_with)
+            if self.received:
+                return 'OK'
+            else:
+                return "NO_SNR" if self.error_reason == 0 else "COLLIS" + ' ' + str(self.collision_with)
+
         def __repr__(self):
             return str(self.received) + ' ' + str(self.error_reason) + ' ' + str(self.collision_with)
 
-
-
     serial = 0
-
-
 
     def __init__(self, node, **kwargs):
         self.source = node
@@ -92,3 +91,12 @@ class Frame:
     def get_freq(self):
         return self.freq
 
+    def __repr__(self):
+        repr = "{:3d} {:4s} {:2d}B SF{:02d} BW{:03.0f} {:3.1f}Mhz".format(
+            self.source.get_node_id(),
+            self.type, len(self.phy_payload),
+            self.sf,
+            self.bw,
+            self.freq,
+        )
+        return repr

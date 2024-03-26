@@ -9,7 +9,7 @@ import numpy
 import Nodes
 from Channel import Channel
 from EventQueue import EventQueue
-from Events import EventNewData, NodeEvent, ChannelEvent, NodeEventWithFrame
+from Events import EventNewData, NodeEvent, ChannelEvent, NodeEventWithFrame, ChannelEventWithFrame, EventLeaveChannel
 from Frame import Frame
 from Nodes import LoraNode, LoraGateway, LoraEndDevice
 import yaml
@@ -85,7 +85,7 @@ def main():
 
     # Create gateways
     gateway_default = config.get("gateway_default", {})
-    gateways = config.get("gateways",  [])
+    gateways = config.get("gateways", [])
     for i in range(num_gw):
         gw = LoraGateway(num_ed + i, event_queue, channel)
         gw.update_config(gateway_default)
@@ -97,7 +97,7 @@ def main():
 
     # Create first event for each node
     for i in [n.id for n in nodes.values() if isinstance(n, LoraEndDevice)]:
-        ts = 0
+        ts = nodes[i].get_t_init()
         new_event = EventNewData(ts, nodes[i])
         event_queue.push(new_event)
 
@@ -110,40 +110,43 @@ def main():
         if event.get_ts() > global_conf.get('sim_duration'):
             break
 
+        '''
         if isinstance(event, ChannelEvent):
             channel.process_event(event)
-            obj = "C"
-            handler = "C"
         elif isinstance(event, NodeEvent):
-            handler = event.get_handler()
+            handler = event.get_handler().get_node_id()
             nodes[handler].process_event(event)
-            obj = "G" if isinstance(nodes[handler], LoraGateway) else "N"
-            handler = str(event.get_handler())
         else:
-            obj = "?"
+            assert False, "Unknown event type"
+        '''
+        '''
+        handler = event.get_handler()
+        handler.process_event(event)
+        '''
+        event.process()
 
         for i, value in enumerate(channel.get_transmitting()):
             print(str(i) + " " if value else "  ", end="")
 
-
-
-        print("{:6d} {:21.12f} {} {} {}".format(
+        text = "{:6d} {:13.6f} {:>3}|{:>3}| {:18s} {}".format(
             simulated_events,
             event.get_ts(),
-            obj,   handler,
-            event.__class__.__name__
-        ), end='')
+            event.get_creator().get_node_id() if type(event.get_creator()) is not Channel else "C",
+            event.get_handler().get_node_id() if type(event.get_handler()) is not Channel else "C",
+            event.__class__.__name__,
+            event.get_frame() if isinstance(event, (NodeEventWithFrame, ChannelEventWithFrame)) else ""
+        )
+        if isinstance(event, EventLeaveChannel):
+            text += " {"
+            for node, reason in event.get_frame().get_receive_status().items():
+                text += str(node) + ": " + str(reason) + ", "
+            text = text.rstrip(", ") + "}"
 
-        if isinstance(event, NodeEventWithFrame):
-            print(" {} {}".format(event.get_node().get_node_id(), event.get_frame().get_receive_status()))
-        else:
-            print()
+        print(text)
 
         simulated_events += 1
 
-
-
-    #for gw in nodes.values():
+    # for gw in nodes.values():
     #    print(gw.id, len(gw.get_received()))
 
 

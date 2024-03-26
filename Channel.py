@@ -1,4 +1,5 @@
 import math
+import geopy.distance
 
 from Events import EventEnterChannel, EventLeaveChannel, EventTXFinished, EventRX
 from Frame import Frame
@@ -12,8 +13,6 @@ def exclude(lst, ex):
 
 class Channel:
     SNR_thresholds = [-7.5, -10.0, -12.5, -15.0, -17.5, -20.0]
-
-
 
     def __init__(self, event_queue, alpha, L0):
         self.nodes = {}
@@ -30,7 +29,6 @@ class Channel:
         self.nodes = nodes
         self.transmitting.extend([False] * len(nodes))
 
-
     def process_event(self, event):
 
         if isinstance(event, EventEnterChannel):
@@ -44,18 +42,8 @@ class Channel:
 
             phy_payload_len = len(frame.get_phy_payload()) * 4 / 8
             ToA = compute_lora_duration(phy_payload_len, frame.get_sf(), frame.get_bw(), frame.get_cr())
-            new_event = EventTXFinished(event.ts + ToA, node, event.get_frame())
+            new_event = EventTXFinished(event.ts + ToA, self, event.get_frame(), node)
             self.event_queue.push(new_event)
-
-            '''
-            for frame in self.ongoing_frames:
-                if frame.get_source() == event.frame.get_source():
-                    continue
-                event.get_frame().add_collision(frame.get_source())
-                frame.add_collision(event.frame.get_source())
-            '''
-
-
 
         elif isinstance(event, EventLeaveChannel):
             frame = event.get_frame()
@@ -64,13 +52,11 @@ class Channel:
             self.ongoing_frames.remove(event.get_frame())
             gws = [n for n in self.nodes.values() if isinstance(n, LoraGateway)]
             for gateway in gws:
-                new_event = EventRX(event.ts, event.get_frame().get_source(), event.get_frame(), gateway.get_node_id())
+                new_event = EventRX(event.ts, self, event.get_frame(), gateway)
                 self.event_queue.push(new_event)
 
-
-
     def path_loss(self, pos1, pos2):
-        dist = math.sqrt((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2)
+        dist = geopy.distance.geodesic(pos1, pos2).m
         return self.L0 + 10 * self.alpha * math.log10(dist)
 
     def propagation(self, frame):
@@ -84,19 +70,19 @@ class Channel:
             [-36.0, -36.0, -36.0, -36.0, -36.0, 6.0]
         ]
 
-
         gws = [n for n in self.nodes.values() if isinstance(n, LoraGateway)]
         eds = [n for n in self.nodes if isinstance(n, LoraEndDevice)]
 
-        #print(self.nodes, gws)
+        # print(self.nodes, gws)
 
         for gateway in gws:
 
-            P_rx_dB = frame.get_eirp() - self.path_loss(frame.get_pos(), gateway.get_pos())
-            p_noise = -174 + 10 * math.log10(frame.get_bw()*1000)
-            SNR = P_rx_dB - p_noise
-
             frame.set_receive_status(gateway.get_node_id(), True)
+
+            P_rx_dB = frame.get_eirp() - self.path_loss(frame.get_pos(), gateway.get_pos())
+            p_noise = -174 + 10 * math.log10(frame.get_bw() * 1000)
+            SNR = P_rx_dB - p_noise
+            # TODO: print("SNR: ", SNR, "P_rx_dB: ", P_rx_dB, "p_noise: ", p_noise, "frame.get_eirp(): ", frame.get_eirp(), "frame.get_bw(): ", frame.get_bw())
 
             if SNR < gateway.get_snr_min(frame.get_sf()):
                 frame.set_receive_status(gateway.get_node_id(), False, Frame.Reason.NO_SNR)
@@ -108,7 +94,7 @@ class Channel:
 
                     ongoing_source = ongoing_frame.get_source()
                     ongoing_P_rx_dB = ongoing_frame.get_eirp() - self.path_loss(ongoing_frame.get_pos(), gateway.get_pos())
-                    delta_P_rx = ongoing_P_rx_dB -  P_rx_dB
+                    delta_P_rx = ongoing_P_rx_dB - P_rx_dB
 
                     ongoing_sf = ongoing_frame.get_sf()
                     frame_sf = frame.get_sf()

@@ -48,3 +48,13 @@ gateways:
 - latitude: 42.1
   longitude: 0.84
   trackerid: name2
+
+end_devices:
+  - traffic:
+      mode: fixed
+      period: 10
+      t_init: 5
+  - traffic:
+      mode: fixed
+      period: 1
+      t_init: 2
