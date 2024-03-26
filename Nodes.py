@@ -4,7 +4,7 @@ import sys
 import numpy
 
 import defaults
-from Events import EventNewData, EventTXStarted, EventTXFinished, EventRX, EventOccupyCollisionDomain, EventAckEnqueued, EventSecondAckEnqueued
+from Events import EventNewData, EventTXStarted, EventTXFinished, EventRX, EventEnterChannel, EventAckEnqueued, EventSecondAckEnqueued
 from Frame import Frame
 
 
@@ -59,15 +59,15 @@ class AlohaNode(Node):
         self.received.append(event.get_frame())
 
     def event_tx_finished(self, event):
-        pass  # new_event = EventFreeCollisionDomain(event.ts + 1, event)
-        # self.event_queue.push(new_event)
+        self.collision_domain.finish_tx(event.get_frame())
 
-    def event_data_enqueued(self, event):
-        new_event = EventTXStarted(event.ts, event.get_frame())
+    def event_new_data(self, event):
+        backoff = 0
+        new_event = EventTXStarted(event.ts + backoff, self)
         self.event_queue.push(new_event)
 
     def event_tx_started(self, event):
-        new_event = EventOccupyCollisionDomain(event.ts, event.get_frame())
+        new_event = EventEnterChannel(event.ts, self, Frame(self))
         self.event_queue.push(new_event)
 
     def enqueue_new_data(self, event):
@@ -80,7 +80,7 @@ class AlohaNode(Node):
         # print("Node %d: processing event %s" % (self.id, type(event)))
 
         if isinstance(event, EventNewData):
-            self.event_data_enqueued(event)
+            self.event_new_data(event)
 
         elif isinstance(event, EventTXStarted):
             self.event_tx_started(event)
@@ -112,26 +112,6 @@ class LoraNode(AlohaNode):
         self.antenna_gain = 0
         self.noise_figure = 0
 
-    # The parameters are passes through the kwargs dictionary
-    # and must have the same name as the attributes of the class
-    '''
-    def configure2(self, tracker_id, **kwargs):
-        param = ["tx_power_dBm", "antenna_gain", "noise_figure", "snr_min", "preamble_length", "packet_header"]
-        for p in param:
-            if p not in kwargs.keys():
-                raise ValueError("Parameter {} not found".format(p))
-
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-    def configure(self, tracker_id, freq=None, sf=None, bw=None, codr=None, lon=None, lat=None):
-        super().set_latlon(lat, lon)
-        self.tracker_id = tracker_id
-        self.freq = float(freq) if freq is not None else self.freq
-        self.sf = float(sf) if sf is not None else self.sf
-        self.bw = float(bw) if bw is not None else self.bw
-        self.codr = codr if codr is not None else self.codr
-    '''
 
     def update_config(self, info):
         self.latitude = float(info.get('latitude', self.latitude))
@@ -160,13 +140,19 @@ class LoraEndDevice(LoraNode):
     def __init__(self, id, event_queue, collision_domain):
         super(LoraEndDevice, self).__init__(id, event_queue, collision_domain)
         self.traffic = defaults.traffic
+        self.traffic_mode = defaults.traffic_mode
+        self.traffic_period = defaults.traffic_period
+        self.traffic_t_init = defaults.traffic_t_init
+
         self.G_dB = defaults.G_dB
         self.SNR_min = defaults.SNR_min
         self.data = []
 
-    def event_data_enqueued(self, event):
-        super().event_data_enqueued(event)
-        self.enqueue_new_data(event)
+    def event_new_data(self, event):
+        super().event_new_data(event)
+        new_event = EventNewData(event.ts + self.traffic_period, self)
+        self.event_queue.push(new_event)
+
 
     def update_config(self, info):
         super().update_config(info)
@@ -192,36 +178,11 @@ class LoraEndDevice(LoraNode):
         self.noise_figure = float(info.get('noise_figure', self.noise_figure))
         self.G_dB = float(info.get('G_dB', self.G_dB))
         self.SNR_min = info.get('SNR_min', self.SNR_min)
-        self.traffic = info.get('traffic', self.traffic)
 
-
-class CafcoNode(LoraEndDevice):
-    def __init__(self, id, event_queue, collision_domain):
-        super().__init__(id, event_queue, collision_domain)
-
-
-    '''
-    def set_config(self, info):
-        pattern = r"SF(\d+)BW(\d+)"
-
-        # Extracting sf and bw from the datr field
-        sf, bw = None, None
-        if (datr := info.get('datr')) is not None:
-            matches = re.findall(pattern, datr[0])
-            if matches:
-                sf = matches[0][0]
-                bw = matches[0][1]
-        if (freq := info.get('freq')) is not None:
-            freq = freq[0]
-
-        if (codr := info.get('codr')) is not None:
-            codr = codr[0]
-        super().configure(info.get('trackerid'), freq, sf, bw, codr, info.get('longitude'), info.get('latitude'))
-        self.set_data(info.get('data'))
-    '''
-
-
-
+        if (traffic:=info.get('traffic')) is not None:
+            self.traffic_mode = traffic.get('mode', self.traffic_mode)
+            self.traffic_period = traffic.get('period', self.traffic_period)
+            self.traffic_t_init = traffic.get('t_init', self.traffic_t_init)
 
 
 
@@ -240,45 +201,3 @@ class LoraGateway(LoraNode):
         #self.event_queue.push(new_event)
 
 
-
-'''
-class CSMANode(AlohaNode):
-
-    def __init__(self, node_id, event_queue, collision_domain):
-        super(CSMANode, self).__init__(node_id, event_queue, collision_domain)
-        self.csma_fail = 0
-        self.retry_limit = 5
-
-    def set_retry_limit(self, limit):
-        self.retry_limit = limit
-
-    def event_data_enqueued(self, event):
-        new_event = EventChannelAssessment(event.ts, event)
-        self.event_queue.push(new_event)
-        self.enqueue_new_data(event)
-
-    def event_collision_domain_free(self, event):
-        new_event = EventTXStarted(event.ts, event)
-        self.event_queue.push(new_event)
-
-    def event_collision_domain_busy(self, event):
-        info = event.get_info()
-        retries = info.get('retries', 0)
-        if retries < self.retry_limit:
-
-            info['retries'] = retries + 1
-            new_event = EventChannelAssessment(event.ts + 1, self.id, info)
-            self.event_queue.push(new_event)
-        else:
-            self.csma_fail += 1
-
-    def process_event(self, event):
-        if super().process_event(event):
-            return True
-
-        elif isinstance(event, EventCollisionDomainFree):
-            self.event_collision_domain_free(event)
-
-        elif isinstance(event, EventCollisionDomainBusy):
-            self.event_collision_domain_busy(event)
-'''

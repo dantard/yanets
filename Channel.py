@@ -1,4 +1,4 @@
-from Events import EventRX, EventTXStarted, EventTXFinished, EventOccupyCollisionDomain, EventFreeCollisionDomain, EventChannelAssessment, \
+from Events import EventRX, EventTXStarted, EventTXFinished, EventEnterChannel, EventFreeCollisionDomain, EventChannelAssessment, \
     EventCollisionDomainFree, EventCollisionDomainBusy
 from Frame import Frame
 from lora import compute_lora_duration
@@ -23,9 +23,18 @@ class Channel:
         self.nodes = nodes
         self.transmitting.extend([False] * len(nodes))
 
+    def start_tx(self, frame):
+        self.transmitting[frame.get_source()] = True
+        self.ongoing_frames.append(frame)
+
+    def finish_tx(self, frame):
+        self.transmitting[frame.get_source()] = False
+        self.ongoing_frames.remove(frame)
+
+    '''
     def process_event(self, event):
 
-        if isinstance(event, EventOccupyCollisionDomain):
+        if isinstance(event, EventEnterChannel):
             self.transmitting[event.frame.get_source()] = True
             self.ongoing_frames.append(event.get_frame())
 
@@ -76,3 +85,4 @@ class Channel:
                 if snr_emitter_receiver > snr_collisioners_receiver_max:
                     new_event = EventRX(event.ts + 1, event.get_frame(), receiver.id)
                     self.event_queue.append(new_event)
+    '''
