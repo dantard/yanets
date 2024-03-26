@@ -24,6 +24,7 @@ def main():
     parser.add_argument('-f', '--config', type=str, default=None, help='Configuration file', required=True)
     parser.add_argument('-n', '--end-devices-config', type=str, default="poses3.json", help='Configuration file', required=True)
     parser.add_argument('-r', '--random-seed', type=int, default=5, help='Random seed')
+    parser.add_argument('-x', '--filter', type=int, default=-1, help='Visualize only event with this id')
 
     args = parser.parse_args()
 
@@ -124,10 +125,20 @@ def main():
         handler.process_event(event)
         '''
         event.process()
+        simulated_events += 1
 
+        # Print events
+
+        # Filter to visualize only one node
+        event_node_id = event.get_handler().get_node_id() if type(event.get_handler()) is not Channel else event.get_creator().get_node_id()
+        if args.filter != -1 and event_node_id != args.filter:
+            continue
+
+        # Print nodes transmitting at this time
         for i, value in enumerate(channel.get_transmitting()):
             print(str(i) + " " if value else "  ", end="")
 
+        # Prepare event details
         text = "{:6d} {:13.6f} {:>3}|{:>3}| {:18s} {}".format(
             simulated_events,
             event.get_ts(),
@@ -136,18 +147,16 @@ def main():
             event.__class__.__name__,
             event.get_frame() if isinstance(event, (NodeEventWithFrame, ChannelEventWithFrame)) else ""
         )
+
+        # Prepare frame details
         if isinstance(event, EventLeaveChannel):
             text += " {"
             for node, reason in event.get_frame().get_receive_status().items():
                 text += str(node) + ": " + str(reason) + ", "
             text = text.rstrip(", ") + "}"
 
+        # Print event
         print(text)
-
-        simulated_events += 1
-
-    # for gw in nodes.values():
-    #    print(gw.id, len(gw.get_received()))
 
 
 if __name__ == "__main__":
