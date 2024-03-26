@@ -9,9 +9,9 @@ import numpy
 import Nodes
 from Channel import Channel
 from EventQueue import EventQueue
-from Events import EventNewData, NodeEvent, CollisionDomainEvent
+from Events import EventNewData, NodeEvent, ChannelEvent, NodeEventWithFrame
 from Frame import Frame
-from Nodes import LoraNode, LoraGateway, CafcoNode, LoraEndDevice
+from Nodes import LoraNode, LoraGateway, LoraEndDevice
 import yaml
 from yaml.loader import SafeLoader
 
@@ -40,6 +40,11 @@ def main():
         print("No global configuration found. Exiting.")
         exit(1)
 
+    channel_conf = config.get("channel_model")
+    if channel_conf is None:
+        print("No channel configuration found. Exiting.")
+        exit(1)
+
     # Read position config from file
     try:
         with open(args.end_devices_config) as json_file:
@@ -65,7 +70,7 @@ def main():
 
     # Prepare objects
     event_queue = EventQueue()
-    channel = Channel(event_queue)
+    channel = Channel(event_queue, channel_conf.get("alpha"), channel_conf.get("L0"))
 
     # Create nodes
     end_device_default = config.get("end_device_default", {})
@@ -92,7 +97,7 @@ def main():
 
     # Create first event for each node
     for i in [n.id for n in nodes.values() if isinstance(n, LoraEndDevice)]:
-        ts = i
+        ts = 0
         new_event = EventNewData(ts, nodes[i])
         event_queue.push(new_event)
 
@@ -105,27 +110,35 @@ def main():
         if event.get_ts() > global_conf.get('sim_duration'):
             break
 
-        if isinstance(event, CollisionDomainEvent):
+        if isinstance(event, ChannelEvent):
             channel.process_event(event)
-            obj = " "
-
+            obj = "C"
+            handler = "C"
         elif isinstance(event, NodeEvent):
             handler = event.get_handler()
             nodes[handler].process_event(event)
             obj = "G" if isinstance(nodes[handler], LoraGateway) else "N"
+            handler = str(event.get_handler())
         else:
             obj = "?"
 
         for i, value in enumerate(channel.get_transmitting()):
             print(str(i) + " " if value else "  ", end="")
 
-        if event.get_handler() != 10:
-            print("{:6d} {:21.12f} {} {:2d}|{:2d} {:30s} {:6d} {:4s} {} {:8.3f} {:8.3f} {}".format(simulated_events,
-                event.get_ts(), obj,
-                event.get_frame().get_source(), event.get_handler(),
-                event.__class__.__name__, event.get_frame().get_serial(), event.get_frame().get_type(),
-                [1 if c else 0 for c in channel.get_transmitting()],
-                event.get_frame().get_latlon()[0], event.get_frame().get_latlon()[1], event.get_frame().get_info()), list(event.get_frame().get_collisions()))
+
+
+        print("{:6d} {:21.12f} {} {} {}".format(
+            simulated_events,
+            event.get_ts(),
+            obj,   handler,
+            event.__class__.__name__
+        ), end='')
+
+        if isinstance(event, NodeEventWithFrame):
+            print(" {} {}".format(event.get_node().get_node_id(), event.get_frame().get_receive_status()))
+        else:
+            print()
+
         simulated_events += 1
 
 

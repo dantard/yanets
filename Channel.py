@@ -1,6 +1,8 @@
-from Events import EventRX, EventTXStarted, EventTXFinished, EventEnterChannel, EventFreeCollisionDomain, EventChannelAssessment, \
-    EventCollisionDomainFree, EventCollisionDomainBusy
+import math
+
+from Events import EventEnterChannel, EventLeaveChannel, EventTXFinished, EventRX
 from Frame import Frame
+from Nodes import LoraGateway, LoraEndDevice
 from lora import compute_lora_duration
 
 
@@ -9,12 +11,17 @@ def exclude(lst, ex):
 
 
 class Channel:
+    SNR_thresholds = [-7.5, -10.0, -12.5, -15.0, -17.5, -20.0]
 
-    def __init__(self, event_queue):
+
+
+    def __init__(self, event_queue, alpha, L0):
         self.nodes = {}
         self.transmitting = []
         self.event_queue = event_queue
         self.ongoing_frames = []
+        self.alpha = alpha
+        self.L0 = L0
 
     def get_transmitting(self):
         return self.transmitting
@@ -23,66 +30,93 @@ class Channel:
         self.nodes = nodes
         self.transmitting.extend([False] * len(nodes))
 
-    def start_tx(self, frame):
-        self.transmitting[frame.get_source()] = True
-        self.ongoing_frames.append(frame)
 
-    def finish_tx(self, frame):
-        self.transmitting[frame.get_source()] = False
-        self.ongoing_frames.remove(frame)
-
-    '''
     def process_event(self, event):
 
         if isinstance(event, EventEnterChannel):
-            self.transmitting[event.frame.get_source()] = True
+            frame = event.get_frame()
+            node = frame.get_source()
+            self.transmitting[node.get_node_id()] = True
+
+            self.propagation(frame)
+
             self.ongoing_frames.append(event.get_frame())
 
+            phy_payload_len = len(frame.get_phy_payload()) * 4 / 8
+            ToA = compute_lora_duration(phy_payload_len, frame.get_sf(), frame.get_bw(), frame.get_cr())
+            new_event = EventTXFinished(event.ts + ToA, node, event.get_frame())
+            self.event_queue.push(new_event)
+
+            '''
             for frame in self.ongoing_frames:
                 if frame.get_source() == event.frame.get_source():
                     continue
                 event.get_frame().add_collision(frame.get_source())
                 frame.add_collision(event.frame.get_source())
+            '''
 
-            bw = event.get_frame().get_info("bw")
-            sf = event.get_frame().get_info('sf')
-            cr = event.get_frame().get_info('codr')
-            ToA = compute_lora_duration(80, sf, bw, cr, 1)
-            new_event = EventFreeCollisionDomain(event.ts + ToA, event.get_frame())
-            self.event_queue.push(new_event)
 
-        elif isinstance(event, EventFreeCollisionDomain):
-            self.transmitting[event.get_frame().get_source()] = False
-            self.progagate_frame(event)
 
-            new_event = EventTXFinished(event.ts, event.get_frame())
-            self.event_queue.push(new_event)
-
+        elif isinstance(event, EventLeaveChannel):
+            frame = event.get_frame()
+            source_node = frame.get_source()
+            self.transmitting[source_node.get_node_id()] = False
             self.ongoing_frames.remove(event.get_frame())
+            gws = [n for n in self.nodes.values() if isinstance(n, LoraGateway)]
+            for gateway in gws:
+                new_event = EventRX(event.ts, event.get_frame().get_source(), event.get_frame(), gateway.get_node_id())
+                self.event_queue.push(new_event)
 
 
-    def progagate_frame(self, event):
 
-        collisioners = event.get_frame().get_collisions()
-        source_node = self.nodes[event.get_frame().get_source()]
+    def path_loss(self, pos1, pos2):
+        dist = math.sqrt((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2)
+        return self.L0 + 10 * self.alpha * math.log10(dist)
 
-        # I consider the receivers one by one (all the nodes except the source)
-        for receiver in exclude(self.nodes.values(), source_node):
-            # I also exclude from the receivers the collisioner because it was transmitting at the same time
-            if collisioners is not None and receiver.id not in collisioners:
-                # Compute for *that* receiver the SNR with the source
-                snr_emitter_receiver = 1 / source_node.distance(receiver)
+    def propagation(self, frame):
 
-                # Now I compute the SNR of all the collisioners with the receiver
-                collisioners_min_distance = 1e6
-                for collisioner_id in collisioners:
-                    collisioner = self.nodes[collisioner_id]
-                    collisioners_min_distance = min(collisioner.distance(receiver), collisioners_min_distance)
+        SIR_thresholds = [
+            [6.0, -16.0, -18.0, -19.0, -19.0, -20.0],
+            [-24.0, 6.0, -20.0, -22.0, -22.0, -22.0],
+            [-27.0, -27.0, 6.0, -23.0, -25.0, -25.0],
+            [-30.0, -30.0, -30.0, 6.0, -26.0, -28.0],
+            [-33.0, -33.0, -33.0, -33.0, 6.0, -29.0],
+            [-36.0, -36.0, -36.0, -36.0, -36.0, 6.0]
+        ]
 
-                snr_collisioners_receiver_max = 1 / collisioners_min_distance
 
-                # If the SNR of the source is higher than the SNR of the collisioners, the receiver will receive
-                if snr_emitter_receiver > snr_collisioners_receiver_max:
-                    new_event = EventRX(event.ts + 1, event.get_frame(), receiver.id)
-                    self.event_queue.append(new_event)
-    '''
+        gws = [n for n in self.nodes.values() if isinstance(n, LoraGateway)]
+        eds = [n for n in self.nodes if isinstance(n, LoraEndDevice)]
+
+        #print(self.nodes, gws)
+
+        for gateway in gws:
+
+            P_rx_dB = frame.get_eirp() - self.path_loss(frame.get_pos(), gateway.get_pos())
+            p_noise = -174 + 10 * math.log10(frame.get_bw()*1000)
+            SNR = P_rx_dB - p_noise
+
+            frame.set_receive_status(gateway.get_node_id(), True)
+
+            if SNR < gateway.get_snr_min(frame.get_sf()):
+                frame.set_receive_status(gateway.get_node_id(), False, Frame.Reason.NO_SNR)
+                continue
+
+            for ongoing_frame in self.ongoing_frames:
+
+                if frame.get_freq() == ongoing_frame.get_freq():
+
+                    ongoing_source = ongoing_frame.get_source()
+                    ongoing_P_rx_dB = ongoing_frame.get_eirp() - self.path_loss(ongoing_frame.get_pos(), gateway.get_pos())
+                    delta_P_rx = ongoing_P_rx_dB -  P_rx_dB
+
+                    ongoing_sf = ongoing_frame.get_sf()
+                    frame_sf = frame.get_sf()
+
+                    if delta_P_rx < SIR_thresholds[frame_sf - 7][ongoing_sf - 7]:
+                        reason = frame.set_receive_status(gateway.get_node_id(), False, Frame.Reason.COLLISION)
+                        reason.add_collision(ongoing_source.get_node_id())
+
+                    if -delta_P_rx < SIR_thresholds[ongoing_sf - 7][frame_sf - 7]:
+                        reason = ongoing_frame.set_receive_status(gateway.get_node_id(), False, Frame.Reason.COLLISION)
+                        reason.add_collision(frame.get_source().get_node_id())

@@ -3,10 +3,9 @@ global:
   sim_seed: 1
   sim_output: "output.csv"
 
-channel:
-  channel_model:
-    alfa: 2
-    L0: 2
+channel_model:
+  alpha: 2
+  L0: 2
 
   interference_matrix:
   - SF12: [1, -23, -24, -25, -25, -25]

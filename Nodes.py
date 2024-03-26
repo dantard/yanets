@@ -4,7 +4,7 @@ import sys
 import numpy
 
 import defaults
-from Events import EventNewData, EventTXStarted, EventTXFinished, EventRX, EventEnterChannel, EventAckEnqueued, EventSecondAckEnqueued
+from Events import EventTXStarted, EventEnterChannel, EventNewData, EventTXFinished, EventLeaveChannel, EventRX
 from Frame import Frame
 
 
@@ -19,12 +19,12 @@ class Node(object):
         self.collision_domain = collision_domain
         self.latitude = 0
         self.longitude = 0
-        # self.data = None
+        self.phy_payload = str()
 
     def get_node_id(self):
         return self.id
 
-    def get_latlon(self):
+    def get_pos(self):
         return self.latitude, self.longitude
 
     def process_event(self, event):
@@ -34,11 +34,8 @@ class Node(object):
         self.latitude = float(lat)
         self.longitude = float(lon)
 
-    def set_data(self, data):
-        self.data = data
-
-    def get_data(self):
-        return self.data
+    def get_phy_payload(self):
+        return self.phy_payload
 
     def distance(self, node):
         return numpy.sqrt((self.latitude - node.latitude) ** 2 + (self.longitude - node.longitude) ** 2)
@@ -59,7 +56,8 @@ class AlohaNode(Node):
         self.received.append(event.get_frame())
 
     def event_tx_finished(self, event):
-        self.collision_domain.finish_tx(event.get_frame())
+        new_event = EventLeaveChannel(event.ts, event.get_frame())
+        self.event_queue.push(new_event)
 
     def event_new_data(self, event):
         backoff = 0
@@ -67,12 +65,12 @@ class AlohaNode(Node):
         self.event_queue.push(new_event)
 
     def event_tx_started(self, event):
-        new_event = EventEnterChannel(event.ts, self, Frame(self))
+        new_event = EventEnterChannel(event.ts, Frame(self))
         self.event_queue.push(new_event)
 
     def enqueue_new_data(self, event):
         # TODO! This is a very simple implementation
-        new_event = EventNewData(event.ts + 1, Frame(self))  ### OJO
+        new_event = EventNewData(event.ts + 1, self, Frame(self))  ### OJO
         self.event_queue.push(new_event)
 
     def process_event(self, event):
@@ -111,7 +109,29 @@ class LoraNode(AlohaNode):
         self.tx_power_dBm = 0
         self.antenna_gain = 0
         self.noise_figure = 0
+        self.G_dB = defaults.G_dB
+        self.SNR_min = defaults.SNR_min
 
+    def get_snr_min(self, sf):
+        return self.SNR_min.get('SF' + str(sf))
+
+    def get_tx_power(self):
+        return self.tx_power_dBm
+
+    def get_antenna_gain(self):
+        return self.antenna_gain
+
+    def get_bw(self):
+        return self.bw
+
+    def get_sf(self):
+        return self.sf
+
+    def get_cr(self):
+        return self.codr
+
+    def get_freq(self):
+        return self.freq
 
     def update_config(self, info):
         self.latitude = float(info.get('latitude', self.latitude))
@@ -139,25 +159,33 @@ class LoraEndDevice(LoraNode):
 
     def __init__(self, id, event_queue, collision_domain):
         super(LoraEndDevice, self).__init__(id, event_queue, collision_domain)
+        self.busy = False
         self.traffic = defaults.traffic
         self.traffic_mode = defaults.traffic_mode
         self.traffic_period = defaults.traffic_period
         self.traffic_t_init = defaults.traffic_t_init
 
-        self.G_dB = defaults.G_dB
-        self.SNR_min = defaults.SNR_min
-        self.data = []
+
 
     def event_new_data(self, event):
-        super().event_new_data(event)
+        if self.busy:
+            print("Trama descartada por transmision concurrente", self.get_node_id())
+        else:
+            super().event_new_data(event)
+
+        self.busy = True
         new_event = EventNewData(event.ts + self.traffic_period, self)
         self.event_queue.push(new_event)
+
+    def event_tx_finished(self, event):
+        super().event_tx_finished(event)
+        self.busy = False
 
 
     def update_config(self, info):
         super().update_config(info)
 
-        self.data = info.get('data', self.data)
+        self.phy_payload = info.get('PHYPayload', self.phy_payload)
 
         freq = info.get('freq', self.freq)
         self.freq = float(freq[0] if type(freq) is list else freq)
@@ -170,7 +198,7 @@ class LoraEndDevice(LoraNode):
             pattern = r"SF(\d+)BW(\d+)"
             matches = re.findall(pattern, datr)
             if matches:
-                self.sf = float(matches[0][0])
+                self.sf = int(matches[0][0])
                 self.bw = float(matches[0][1])
 
         self.tx_power_dBm = float(info.get('tx_power_dBm', self.tx_power_dBm))
