@@ -35,16 +35,6 @@ class Node(object):
     def get_phy_payload(self):
         return self.phy_payload
 
-    def distance(self, node):
-        return numpy.sqrt((self.latitude - node.latitude) ** 2 + (self.longitude - node.longitude) ** 2)
-
-    def get_config(self):
-        return {}
-
-    def get(self, key):
-        return self.get_config().get(key)
-
-
 class AlohaNode(Node):
 
     def __init__(self, id, event_queue, collision_domain):
@@ -94,17 +84,18 @@ class AlohaNode(Node):
 class LoraNode(AlohaNode):
     def __init__(self, id, event_queue, collision_domain):
         super().__init__(id, event_queue, collision_domain)
-        self.tracker_id = 0
-        self.freq = 868.5
-        self.sf = 7
-        self.bw = 125
-        self.codr = "4/5"
-        #
-        self.tx_power_dBm = 0
-        self.antenna_gain = 0
-        self.noise_figure = 0
-        self.G_dB = defaults.G_dB
+        self.trackerid = None
+        self.freq = defaults.freq
+        self.sf = defaults.sf
+        self.bw = defaults.bw
+        self.codr = defaults.codr
+        self.tx_power_dBm = defaults.tx_power_dBm
+        self.antenna_gain_dBi = defaults.antenna_gain_dBi
+        self.noise_figure_dB = defaults.noise_figure_dB
         self.SNR_min = defaults.SNR_min
+
+    def get_trackerid(self):
+        return self.trackerid
 
     def get_snr_min(self, sf):
         return self.SNR_min.get('SF' + str(sf))
@@ -113,7 +104,7 @@ class LoraNode(AlohaNode):
         return self.tx_power_dBm
 
     def get_antenna_gain(self):
-        return self.antenna_gain
+        return self.antenna_gain_dBi
 
     def get_bw(self):
         return self.bw
@@ -128,17 +119,12 @@ class LoraNode(AlohaNode):
         return self.freq
 
     def update_config(self, info):
+        if info.get('trackerid') is None:
+            return False
         self.latitude = float(info.get('latitude', self.latitude))
         self.longitude = float(info.get('longitude', self.longitude))
-
-    def get_config(self):
-        config = super().get_config()
-        config.update({'freq': self.freq, 'sf': self.sf, 'bw': self.bw, 'codr': self.codr})
-        return config
-
-    def print(self):
-        print("tracker_id: {}, freq: {}, sf: {}, bw: {}, codr: {}, lon: {}, lat: {} data: {}".format(self.tracker_id, self.freq, self.sf, self.bw, self.codr,
-                                                                                                     self.longitude, self.latitude, self.data))
+        self.trackerid = info.get('trackerid', self.trackerid)
+        return True
 
 
 class LoraEndDevice(LoraNode):
@@ -176,8 +162,11 @@ class LoraEndDevice(LoraNode):
         super().event_tx_finished(event)
         self.busy = False
 
-    def update_config(self, info):
-        super().update_config(info)
+
+
+    def update_config(self, info, require_tracker_id=True):
+        if not super().update_config(info):
+            return False
 
         self.phy_payload = info.get('PHYPayload', self.phy_payload)
 
@@ -196,16 +185,19 @@ class LoraEndDevice(LoraNode):
                 self.bw = float(matches[0][1])
 
         self.tx_power_dBm = float(info.get('tx_power_dBm', self.tx_power_dBm))
-        self.antenna_gain = float(info.get('antenna_gain', self.antenna_gain))
-        self.noise_figure = float(info.get('noise_figure', self.noise_figure))
-        self.G_dB = float(info.get('G_dB', self.G_dB))
+        self.antenna_gain_dBi = float(info.get('antenna_gain_dBi', self.antenna_gain_dBi))
+        self.noise_figure_dB = float(info.get('noise_figure_dB', self.noise_figure_dB))
         self.SNR_min = info.get('SNR_min', self.SNR_min)
 
         if (traffic := info.get('traffic')) is not None:
             self.traffic_mode = traffic.get('mode', self.traffic_mode)
-            self.traffic_period = traffic.get('period', self.traffic_period)
-            self.traffic_t_init = traffic.get('t_init', self.traffic_t_init)
+            self.traffic_period = float(traffic.get('period', self.traffic_period))
+            self.traffic_t_init = float(traffic.get('t_init', self.traffic_t_init))
 
+        return True
+
+    def __repr__(self):
+        return "EndDevice {}, lon: {}, lat: {}, freq: {}, sf: {}, bw: {}, codr: {}, tx_power_dBm: {}, antenna_gain_dBi: {}, noise_figure_dB: {}".format(self.trackerid, self.longitude, self.latitude, self.freq, self.sf, self.bw, self.codr, self.tx_power_dBm, self.antenna_gain_dBi, self.noise_figure_dB)
 
 class LoraGateway(LoraNode):
     def __init__(self, id, event_queue, collision_domain):
@@ -220,3 +212,5 @@ class LoraGateway(LoraNode):
 
         # new_event = EventSecondAckEnqueued(event.ts + 2000, Frame(self, type='ACK2'))
         # self.event_queue.push(new_event)
+    def __repr__(self):
+        return "Gateway   {}, lon: {}, lat: {}".format(self.trackerid, self.longitude, self.latitude)

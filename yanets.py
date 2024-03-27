@@ -71,30 +71,49 @@ def main():
 
     # Prepare objects
     event_queue = EventQueue()
-    channel = Channel(event_queue, channel_conf.get("alpha"), channel_conf.get("L0"))
+    channel = Channel(event_queue, channel_conf)
 
     # Create nodes
     end_device_default = config.get("end_device_default", {})
     end_devices = config.get("end_devices", [])
     for i in range(0, num_ed):
         emitter = LoraEndDevice(i, event_queue, channel)
-        emitter.update_config(end_device_default)
+        emitter.update_config(end_device_default, False)
         if len(end_devices) > i:
-            emitter.update_config(end_devices[i])
-        emitter.update_config(end_devices_conf[i])
+            if not emitter.update_config(end_devices[i]):
+                print("Field 'trackerid' is required in {} 'end_devices' section file".format(args.config))
+                exit(1)
+        if emitter.get_trackerid() is None:
+            # Tracker id has not been filled yet, read directly from JSON
+            # and assign values according to their positions in the list
+            emitter.update_config(end_devices_conf[i])
+        else:
+            # Tracker id has been filled already so we have to look for
+            # the corresponding node in the JSON file
+            end_device_conf = next((item for item in end_devices_conf if item["trackerid"] == emitter.get_trackerid()), None)
+            emitter.update_config(end_device_conf)
+
         nodes[emitter.id] = emitter
+
 
     # Create gateways
     gateway_default = config.get("gateway_default", {})
     gateways = config.get("gateways", [])
+    print(gateways)
     for i in range(num_gw):
         gw = LoraGateway(num_ed + i, event_queue, channel)
         gw.update_config(gateway_default)
-        gw.update_config(gateways[i])
+        if not gw.update_config(gateways[i]):
+            print("Field 'trackerid' is required in {} 'gateways' section file".format(args.config))
+            exit(1)
         nodes[gw.id] = gw
 
     # Add nodes to channel
     channel.set_nodes(nodes)
+
+
+    for node in nodes.values():
+        print(node)
 
     # Create first event for each node
     for i in [n.id for n in nodes.values() if isinstance(n, LoraEndDevice)]:
