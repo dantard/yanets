@@ -1,16 +1,32 @@
 class Frame:
-    class Reason:
+    class Status:
         NO_SNR = 0
         COLLISION = 1
+        OK = 2
 
-        def __init__(self, received, reason):
+        def __init__(self, received, reason, rssi=None, lsnr=None):
             self.received = received
             self.error_reason = reason
             self.collision_with = []
+            self.rssi = rssi
+            self.lsnr = lsnr
+
+        def get_collision_with(self):
+            return self.collision_with
 
         def add_collision(self, node_id):
             self.collision_with.append(node_id)
+        def set_rssi(self, rssi):
+            self.rssi = rssi
 
+        def get_rssi(self):
+            return self.rssi
+
+        def set_lsnr(self, lsnr):
+            self.lsnr = lsnr
+
+        def get_lsnr(self):
+            return self.lsnr
 
         def __str__(self):
             if self.received:
@@ -25,7 +41,8 @@ class Frame:
 
     def __init__(self, node, **kwargs):
         self.source = node
-        self.collisions = set()
+        self.fcnt = node.get_fcnt()
+        self.ts = kwargs.get('ts', 0)
         self.receive_status = {}
         self.type = kwargs.get('type', 'DATA')
         self.pos = node.get_pos()
@@ -38,16 +55,19 @@ class Frame:
         self.serial = Frame.serial
         Frame.serial += 1
 
-    def set_receive_status(self, destination_node, receive_ok, why=None):
-        reason = self.receive_status.get(destination_node, None)
-        if reason is None:
-            reason = Frame.Reason(receive_ok, why)
-            self.receive_status[destination_node] = reason
+    def set_receive_status(self, gw_id, receive_ok, why=None, rssi=None, lsnr=None):
+        status = self.receive_status.get(gw_id, None)
+        if status is None:
+            status = Frame.Status(receive_ok, why, rssi, lsnr)
+            self.receive_status[gw_id] = status
 
-        reason.received = receive_ok
-        reason.error_reason = why
+        status.received = receive_ok
+        status.error_reason = why
 
-        return reason
+        return status
+
+    def get_fcnt(self):
+        return self.fcnt
 
     def get_receive_status(self, index=None):
         if index is None:
@@ -73,12 +93,6 @@ class Frame:
     def get_phy_payload(self):
         return self.phy_payload
 
-    def get_collisions(self):
-        return self.collisions
-
-    def add_collision(self, node_id):
-        self.collisions.add(node_id)
-
     def get_bw(self):
         return self.bw
 
@@ -91,9 +105,13 @@ class Frame:
     def get_freq(self):
         return self.freq
 
+    def get_ts(self):
+        return self.ts
+
     def __repr__(self):
-        repr = "{:3d} {:4s} {:2d}B SF{:02d} BW{:03.0f} {:3.1f}Mhz".format(
+        repr = "{:3d} {:8s} {:4s} {:2d}B SF{:02d} BW{:03.0f} {:3.1f}Mhz".format(
             self.source.get_node_id(),
+            self.source.get_trackerid(),
             self.type, len(self.phy_payload),
             self.sf,
             self.bw,

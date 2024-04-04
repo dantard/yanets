@@ -54,13 +54,10 @@ end_devices:
   - trackerid: bb000019
     traffic:
       mode: fixed
-      period: 1
-      t_init: 2
+      period: 4
       backoff: 0
   - trackerid: bb000008
     traffic:
       mode: fixed
-      period: 1
-      t_init: 2
+      period: 4
       backoff: 0
-    datr: SF12BW125

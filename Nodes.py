@@ -1,5 +1,6 @@
 import re
 import sys
+from datetime import datetime
 
 import numpy
 
@@ -11,13 +12,18 @@ from Frame import Frame
 class Node(object):
     rng = None
 
-    def __init__(self, id, event_queue, collision_domain):
+    def __init__(self, id, event_queue, channel):
         self.id = id
+        self.fcnt = 0
         self.event_queue = event_queue
-        self.collision_domain = collision_domain
+        self.channel = channel
         self.latitude = 0
         self.longitude = 0
         self.phy_payload = str()
+
+    def get_fcnt(self):
+        self.fcnt += 1
+        return self.fcnt
 
     def get_node_id(self):
         return self.id
@@ -45,7 +51,7 @@ class AlohaNode(Node):
         self.received.append(event.get_frame())
 
     def event_tx_finished(self, event):
-        new_event = EventLeaveChannel(event.ts, event.get_frame(), self, self.collision_domain)
+        new_event = EventLeaveChannel(event.ts, event.get_frame(), self, self.channel)
         self.event_queue.push(new_event)
 
     def event_new_data(self, event):
@@ -54,7 +60,7 @@ class AlohaNode(Node):
         self.event_queue.push(new_event)
 
     def event_tx_started(self, event):
-        new_event = EventEnterChannel(event.ts, Frame(self), self, self.collision_domain)
+        new_event = EventEnterChannel(event.ts, Frame(self, ts=event.ts), self, self.channel)
         self.event_queue.push(new_event)
 
     def process_event(self, event):
@@ -170,6 +176,17 @@ class LoraEndDevice(LoraNode):
 
         self.phy_payload = info.get('PHYPayload', self.phy_payload)
 
+        date = info.get('date', None)
+        print("date", type(date), self.traffic_t_init)
+        date = date["$date"] if type(date) is dict else date
+        if date is not None:
+            init_ts = datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
+            epoch_time = datetime(1970, 1, 1)
+            date = (init_ts - epoch_time).total_seconds()
+            self.traffic_t_init = date
+
+        self.traffic_t_init = float(date) if date is not None else self.traffic_t_init
+
         freq = info.get('freq', self.freq)
         self.freq = float(freq[0] if type(freq) is list else freq)
 
@@ -197,7 +214,11 @@ class LoraEndDevice(LoraNode):
         return True
 
     def __repr__(self):
-        return "EndDevice {}, lon: {}, lat: {}, freq: {}, sf: {}, bw: {}, codr: {}, tx_power_dBm: {}, antenna_gain_dBi: {}, noise_figure_dB: {}".format(self.trackerid, self.longitude, self.latitude, self.freq, self.sf, self.bw, self.codr, self.tx_power_dBm, self.antenna_gain_dBi, self.noise_figure_dB)
+        return ("EndDevice {}, t_init: {} "
+                "lon: {}, lat: {}, freq: {}, "
+                "sf: {}, bw: {}, codr: {}, "
+                "tx_power_dBm: {}, antenna_gain_dBi: {}, "
+                "noise_figure_dB: {}").format(self.trackerid,self.traffic_t_init, self.longitude, self.latitude, self.freq, self.sf, self.bw, self.codr, self.tx_power_dBm, self.antenna_gain_dBi, self.noise_figure_dB)
 
 class LoraGateway(LoraNode):
     def __init__(self, id, event_queue, collision_domain):

@@ -123,26 +123,15 @@ def main():
 
     # Main event loop
     simulated_events = 0
+    sim_init = event_queue[-1].get_ts()
+
     while event_queue.size() > 0:
 
         event = event_queue.pop()
 
-        if event.get_ts() > global_conf.get('sim_duration'):
+        if event.get_ts() > sim_init + global_conf.get('sim_duration'):
             break
 
-        '''
-        if isinstance(event, ChannelEvent):
-            channel.process_event(event)
-        elif isinstance(event, NodeEvent):
-            handler = event.get_handler().get_node_id()
-            nodes[handler].process_event(event)
-        else:
-            assert False, "Unknown event type"
-        '''
-        '''
-        handler = event.get_handler()
-        handler.process_event(event)
-        '''
         event.process()
         simulated_events += 1
 
@@ -176,6 +165,10 @@ def main():
 
         # Print event
         print(text)
+    with open("output.json", "w") as f:
+        json.dump(channel.get_output(), f)
+
+    print(channel.get_output())
 
 
 if __name__ == "__main__":
