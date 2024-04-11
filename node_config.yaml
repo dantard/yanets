@@ -1,7 +1,7 @@
 global:
   sim_duration: 100
-  sim_seed: 1
-  sim_output: "output.csv"
+  sim_seed: 121
+  sim_output: "output22.json"
 
 channel_model:
   alpha: 2.32
@@ -17,7 +17,6 @@ end_device_default:
   traffic:
     mode: fixed
     period: 10
-    t_init: 10
     backoff: 0
   tx_power_dBm: 14
   antenna_gain_dBi: 3
@@ -41,10 +40,10 @@ gateway_default:
     - SF7: -7.5
 
 gateways:
-  - trackerid: name1
+  - trackerid: gw000001
     latitude: 42.9645653
     longitude: -2.63
-  - trackerid: name2
+  - trackerid: gw000002
     latitude: 42.9645653
     longitude: -2.6
 

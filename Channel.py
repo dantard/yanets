@@ -123,7 +123,7 @@ class Channel:
                 }
         for gateway, status in frame.get_receive_status().items():
 
-            data["gateways"].append(gateway)
+            data["gateways"].append(self.nodes[gateway].trackerid)
             data["lsnr"].append(status.get_lsnr())
             data["rssi"].append(status.get_rssi())
             data["th_snr"].append(status.error_reason!=Frame.Status.NO_SNR)

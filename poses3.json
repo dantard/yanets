@@ -2,8 +2,10 @@
   "_id": {
     "$oid": "64c634a0c6976e465b191e5d"
   },
-  "date": {
-    "$date": "2023-07-30T05:56:01.237Z"
+  "traffic": {
+    "t_init": "2023-07-30T05:56:01.237Z",
+    "period": "10",
+    "backoff": "9"
   },
   "trackerid": "bb000008",
   "longitude": "-2.6147869",

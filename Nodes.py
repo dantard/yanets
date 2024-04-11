@@ -1,17 +1,17 @@
 import re
 import sys
 from datetime import datetime
+from random import randint
 
 import numpy
 
 import defaults
+import utils
 from Events import EventTXStarted, EventEnterChannel, EventNewData, EventTXFinished, EventLeaveChannel, EventRX
 from Frame import Frame
 
 
 class Node(object):
-    rng = None
-
     def __init__(self, id, event_queue, channel):
         self.id = id
         self.fcnt = 0
@@ -55,8 +55,7 @@ class AlohaNode(Node):
         self.event_queue.push(new_event)
 
     def event_new_data(self, event):
-        backoff = 0
-        new_event = EventTXStarted(event.ts + backoff, self)
+        new_event = EventTXStarted(event.ts, self)
         self.event_queue.push(new_event)
 
     def event_tx_started(self, event):
@@ -135,14 +134,6 @@ class LoraNode(AlohaNode):
 
 class LoraEndDevice(LoraNode):
 
-    @staticmethod
-    def set_rng(rng):
-        Node.rng = rng
-
-    MODE_RANDOM_EXPONENTIAL = 0  # lamba
-    MODE_FIXED = 1  # t1, t2
-    MODE_RANDOM_UNIFORM = 2  # t1, t2
-
     def __init__(self, id, event_queue, collision_domain):
         super(LoraEndDevice, self).__init__(id, event_queue, collision_domain)
         self.busy = False
@@ -150,18 +141,24 @@ class LoraEndDevice(LoraNode):
         self.traffic_mode = defaults.traffic_mode
         self.traffic_period = defaults.traffic_period
         self.traffic_t_init = defaults.traffic_t_init
+        self.traffic_backoff = defaults.backoff
 
     def get_t_init(self):
         return self.traffic_t_init
 
     def event_new_data(self, event):
+        # WARNING: Overrides parent method to add backoff
         if self.busy:
             print("Trama descartada por transmision concurrente", self.get_node_id())
         else:
-            super().event_new_data(event)
+            backoff = utils.get_random_int(0, self.traffic_backoff)
+            new_event = EventTXStarted(event.ts + backoff, self)
+            self.event_queue.push(new_event)
+            self.busy = True
 
-        self.busy = True
-        new_event = EventNewData(event.ts + self.traffic_period, self)
+        # Generate subsequent data event
+        backoff = utils.get_random_int(0, self.traffic_backoff)
+        new_event = EventNewData(event.ts + self.traffic_period + backoff, self)
         self.event_queue.push(new_event)
 
     def event_tx_finished(self, event):
@@ -175,17 +172,6 @@ class LoraEndDevice(LoraNode):
             return False
 
         self.phy_payload = info.get('PHYPayload', self.phy_payload)
-
-        date = info.get('date', None)
-        print("date", type(date), self.traffic_t_init)
-        date = date["$date"] if type(date) is dict else date
-        if date is not None:
-            init_ts = datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
-            epoch_time = datetime(1970, 1, 1)
-            date = (init_ts - epoch_time).total_seconds()
-            self.traffic_t_init = date
-
-        self.traffic_t_init = float(date) if date is not None else self.traffic_t_init
 
         freq = info.get('freq', self.freq)
         self.freq = float(freq[0] if type(freq) is list else freq)
@@ -209,7 +195,14 @@ class LoraEndDevice(LoraNode):
         if (traffic := info.get('traffic')) is not None:
             self.traffic_mode = traffic.get('mode', self.traffic_mode)
             self.traffic_period = float(traffic.get('period', self.traffic_period))
-            self.traffic_t_init = float(traffic.get('t_init', self.traffic_t_init))
+            self.traffic_backoff = int(traffic.get('backoff', self.traffic_backoff))
+            if self.traffic_backoff >= self.traffic_period:
+                raise ValueError("Node {}: Backoff must be shorter than period".format(self.get_trackerid()))
+
+            t_init = traffic.get('t_init', defaults.traffic_t_init)
+            init_ts = datetime.strptime(t_init, "%Y-%m-%dT%H:%M:%S.%fZ")
+            epoch_time = datetime(1970, 1, 1)
+            self.traffic_t_init = (init_ts - epoch_time).total_seconds()
 
         return True
 

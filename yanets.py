@@ -3,10 +3,13 @@
 import argparse
 import json
 import sys
+from datetime import datetime
 
 import numpy
 
 import Nodes
+import defaults
+import utils
 from Channel import Channel
 from EventQueue import EventQueue
 from Events import EventNewData, NodeEvent, ChannelEvent, NodeEventWithFrame, ChannelEventWithFrame, EventLeaveChannel
@@ -23,7 +26,7 @@ def main():
         epilog='Have fun!')
     parser.add_argument('-f', '--config', type=str, default=None, help='Configuration file', required=True)
     parser.add_argument('-n', '--end-devices-config', type=str, default="poses3.json", help='Configuration file', required=True)
-    parser.add_argument('-r', '--random-seed', type=int, default=5, help='Random seed')
+    parser.add_argument('-r', '--random-seed', type=int, default=None, help='Random seed')
     parser.add_argument('-x', '--filter', type=int, default=-1, help='Visualize only event with this id')
 
     args = parser.parse_args()
@@ -63,8 +66,13 @@ def main():
         exit(1)
 
     # ### MAIN Program ###
-    rng = numpy.random.default_rng(args.random_seed)
-    Nodes.LoraEndDevice.set_rng(rng)
+    if args.random_seed is not None:
+        seed = args.random_seed
+    else:
+        seed = global_conf.get("sim_seed", 1)
+
+    rng = numpy.random.default_rng(seed)
+    utils.set_rng(rng)
 
     # Prepare Nodes
     nodes = {}
@@ -129,7 +137,7 @@ def main():
 
         event = event_queue.pop()
 
-        if event.get_ts() > sim_init + global_conf.get('sim_duration'):
+        if event.get_ts() > sim_init + int(global_conf.get('sim_duration', defaults.global_sim_duration)):
             break
 
         event.process()
@@ -147,11 +155,12 @@ def main():
             print(str(i) + " " if value else "  ", end="")
 
         # Prepare event details
-        text = "{:6d} {:13.6f} {:>3}|{:>3}| {:18s} {}".format(
+        text = "{:6d}  {:14s} {:12.5f} {:>10}|{:>10}| {:18s} {}".format(
             simulated_events,
-            event.get_ts(),
-            event.get_creator().get_node_id() if type(event.get_creator()) is not Channel else "C",
-            event.get_handler().get_node_id() if type(event.get_handler()) is not Channel else "C",
+            datetime.fromtimestamp(event.get_ts()).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            event.get_ts() - sim_init,
+            event.get_creator().get_trackerid() if type(event.get_creator()) is not Channel else "Channel ",
+            event.get_handler().get_trackerid() if type(event.get_handler()) is not Channel else "Channel ",
             event.__class__.__name__,
             event.get_frame() if isinstance(event, (NodeEventWithFrame, ChannelEventWithFrame)) else ""
         )
@@ -159,13 +168,13 @@ def main():
         # Prepare frame details
         if isinstance(event, EventLeaveChannel):
             text += " {"
-            for node, reason in event.get_frame().get_receive_status().items():
-                text += str(node) + ": " + str(reason) + ", "
+            for node, status in event.get_frame().get_receive_status().items():
+                text += str(nodes.get(node).get_trackerid()) + ": " + str(status) + ", "
             text = text.rstrip(", ") + "}"
 
         # Print event
         print(text)
-    with open("output.json", "w") as f:
+    with open(global_conf.get("sim_output", defaults.global_sim_output), "w") as f:
         json.dump(channel.get_output(), f)
 
     print(channel.get_output())
