@@ -7,19 +7,29 @@ import numpy
 
 import defaults
 import utils
-from Events import EventTXStarted, EventEnterChannel, EventNewData, EventTXFinished, EventLeaveChannel, EventRX
+from Events import EventTXStarted, EventEnterChannel, EventNewData, EventTXFinished, EventLeaveChannel
 from Frame import Frame
 
 
 class Node(object):
     def __init__(self, id, event_queue, channel):
-        self.id = id
-        self.fcnt = 0
         self.event_queue = event_queue
         self.channel = channel
+        self.id = id
+        self.fcnt = 0
         self.latitude = 0
         self.longitude = 0
+        self.trackerid = None
         self.phy_payload = str()
+        self.freq = defaults.freq
+        self.sf = defaults.sf
+        self.bw = defaults.bw
+        self.codr = defaults.codr
+        self.SNR_min = defaults.SNR_min
+        self.tx_power_dBm = defaults.tx_power_dBm
+        self.antenna_gain_dBi = defaults.antenna_gain_dBi
+        self.noise_figure_dB = defaults.noise_figure_dB
+
 
     def get_fcnt(self):
         self.fcnt += 1
@@ -31,9 +41,6 @@ class Node(object):
     def get_pos(self):
         return self.latitude, self.longitude
 
-    def process_event(self, event):
-        pass
-
     def set_latlon(self, lat, lon):
         self.latitude = float(lat)
         self.longitude = float(lon)
@@ -41,18 +48,10 @@ class Node(object):
     def get_phy_payload(self):
         return self.phy_payload
 
-class AlohaNode(Node):
-
-    def __init__(self, id, event_queue, collision_domain):
-        super(AlohaNode, self).__init__(id, event_queue, collision_domain)
-        self.received = []
-
-    def event_rx(self, event):
-        self.received.append(event.get_frame())
-
     def event_tx_finished(self, event):
         new_event = EventLeaveChannel(event.ts, event.get_frame(), self, self.channel)
         self.event_queue.push(new_event)
+
 
     def event_new_data(self, event):
         new_event = EventTXStarted(event.ts, self)
@@ -64,8 +63,6 @@ class AlohaNode(Node):
 
     def process_event(self, event):
 
-        # print("Node %d: processing event %s" % (self.id, type(event)))
-
         if isinstance(event, EventNewData):
             self.event_new_data(event)
 
@@ -74,30 +71,10 @@ class AlohaNode(Node):
 
         elif isinstance(event, EventTXFinished):
             self.event_tx_finished(event)
-
-        elif isinstance(event, EventRX):
-            self.event_rx(event)
         else:
             return False
 
         return True
-
-    def get_received(self):
-        return self.received
-
-
-class LoraNode(AlohaNode):
-    def __init__(self, id, event_queue, collision_domain):
-        super().__init__(id, event_queue, collision_domain)
-        self.trackerid = None
-        self.freq = defaults.freq
-        self.sf = defaults.sf
-        self.bw = defaults.bw
-        self.codr = defaults.codr
-        self.tx_power_dBm = defaults.tx_power_dBm
-        self.antenna_gain_dBi = defaults.antenna_gain_dBi
-        self.noise_figure_dB = defaults.noise_figure_dB
-        self.SNR_min = defaults.SNR_min
 
     def get_trackerid(self):
         return self.trackerid
@@ -132,16 +109,18 @@ class LoraNode(AlohaNode):
         return True
 
 
-class LoraEndDevice(LoraNode):
 
-    def __init__(self, id, event_queue, collision_domain):
-        super(LoraEndDevice, self).__init__(id, event_queue, collision_domain)
+
+class LoraEndDevice(Node):
+
+    def __init__(self, id, event_queue, channel):
+        super(LoraEndDevice, self).__init__(id, event_queue, channel)
         self.busy = False
         self.traffic = defaults.traffic
-        self.traffic_mode = defaults.traffic_mode
         self.traffic_period = defaults.traffic_period
-        self.traffic_t_init = defaults.traffic_t_init
+        self.traffic_t_init = 0
         self.traffic_backoff = defaults.backoff
+
 
     def get_t_init(self):
         return self.traffic_t_init
@@ -167,7 +146,7 @@ class LoraEndDevice(LoraNode):
 
 
 
-    def update_config(self, info, require_tracker_id=True):
+    def update_config(self, info):
         if not super().update_config(info):
             return False
 
@@ -193,7 +172,6 @@ class LoraEndDevice(LoraNode):
         self.SNR_min = info.get('SNR_min', self.SNR_min)
 
         if (traffic := info.get('traffic')) is not None:
-            self.traffic_mode = traffic.get('mode', self.traffic_mode)
             self.traffic_period = float(traffic.get('period', self.traffic_period))
             self.traffic_backoff = int(traffic.get('backoff', self.traffic_backoff))
             if self.traffic_backoff >= self.traffic_period:
@@ -213,18 +191,9 @@ class LoraEndDevice(LoraNode):
                 "tx_power_dBm: {}, antenna_gain_dBi: {}, "
                 "noise_figure_dB: {}").format(self.trackerid,self.traffic_t_init, self.longitude, self.latitude, self.freq, self.sf, self.bw, self.codr, self.tx_power_dBm, self.antenna_gain_dBi, self.noise_figure_dB)
 
-class LoraGateway(LoraNode):
-    def __init__(self, id, event_queue, collision_domain):
-        super().__init__(id, event_queue, collision_domain)
-        self.snr_min = 0
+class LoraGateway(Node):
+    def __init__(self, id, event_queue, channel):
+        super().__init__(id, event_queue, channel)
 
-    def event_rx(self, event):
-        super().event_rx(event)
-
-        # new_event = EventAckEnqueued(event.ts + 1000, Frame(self, type='ACK1'))
-        # self.event_queue.push(new_event)
-
-        # new_event = EventSecondAckEnqueued(event.ts + 2000, Frame(self, type='ACK2'))
-        # self.event_queue.push(new_event)
     def __repr__(self):
         return "Gateway   {}, lon: {}, lat: {}".format(self.trackerid, self.longitude, self.latitude)

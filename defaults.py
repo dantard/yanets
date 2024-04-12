@@ -1,6 +1,6 @@
 global_sim_output = "output.json"
 global_sim_duration = 100
-traffic = {'mode': 'fixed', 'period': 1, 't_init': 100}
+traffic = {'period': 1, 't_init': 100, 'backoff': 0}
 SNR_min = {'SF12': -20, 'SF11': -17.5, 'SF10': -15, 'SF9': -12.5, 'SF8': -10, 'SF7': -7.5}
 antenna_gain_dBi = 14
 traffic_mode = 'fixed'

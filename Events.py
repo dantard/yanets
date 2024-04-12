@@ -69,6 +69,3 @@ class EventLeaveChannel(ChannelEventWithFrame):
 class EventTXFinished(NodeEventWithFrame):
     pass
 
-
-class EventRX(NodeEventWithFrame):
-    pass

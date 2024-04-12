@@ -2,153 +2,150 @@
 
 import argparse
 import json
-import sys
 from datetime import datetime
 
 import numpy
+import yaml
+from yaml.loader import SafeLoader
 
-import Nodes
 import defaults
 import utils
 from Channel import Channel
 from EventQueue import EventQueue
-from Events import EventNewData, NodeEvent, ChannelEvent, NodeEventWithFrame, ChannelEventWithFrame, EventLeaveChannel
-from Frame import Frame
-from Nodes import LoraNode, LoraGateway, LoraEndDevice
-import yaml
-from yaml.loader import SafeLoader
+from Events import EventNewData, NodeEventWithFrame, ChannelEventWithFrame, EventLeaveChannel
+from Nodes import LoraGateway, LoraEndDevice
 
 
 def main():
     parser = argparse.ArgumentParser(
-        prog='Yanets',
-        description='Yet Another NETwork Simulator',
-        epilog='Have fun!')
+        prog='TAFCO Lora Simulator',
+        description='TAFCO Lora Simulator')
+
     parser.add_argument('-f', '--config', type=str, default=None, help='Configuration file', required=True)
     parser.add_argument('-n', '--end-devices-config', type=str, default="poses3.json", help='Configuration file', required=True)
     parser.add_argument('-r', '--random-seed', type=int, default=None, help='Random seed')
-    parser.add_argument('-x', '--filter', type=int, default=-1, help='Visualize only event with this id')
 
     args = parser.parse_args()
 
-    # Read general config from file
+    # Read general config from YAML file
     try:
         with open(args.config) as f:
-            config = yaml.load(f, Loader=SafeLoader)
+            yaml_config = yaml.load(f, Loader=SafeLoader)
     except FileNotFoundError:
         print("No config file found. Exiting.")
         exit(1)
 
-    global_conf = config.get("global")
-    if global_conf is None:
+    yaml_global_conf = yaml_config.get("global")
+    if yaml_global_conf is None:
         print("No global configuration found. Exiting.")
         exit(1)
 
-    channel_conf = config.get("channel_model")
-    if channel_conf is None:
+    yaml_channel_conf = yaml_config.get("channel_model")
+    if yaml_channel_conf is None:
         print("No channel configuration found. Exiting.")
         exit(1)
 
-    # Read position config from file
+    # Read end-devices specific configurations from JSON file
     try:
         with open(args.end_devices_config) as json_file:
-            end_devices_conf = json.load(json_file)
+            json_end_devices_conf = json.load(json_file)
 
     except FileNotFoundError:
         print("No nodes config file found. Exiting.")
         exit(1)
 
-    num_ed = global_conf.get("num_ed", len(end_devices_conf))
-    num_gw = global_conf.get("num_gw", len(config.get("gateways", [])))
+    # Get number of nodes and gateways from the configuration files
+    num_ed = len(json_end_devices_conf)
+    num_gw = len(yaml_config.get("gateways", []))
 
     if num_ed == 0 or num_gw == 0:
         print("No nodes or gateways defined. Exiting.")
         exit(1)
 
-    # ### MAIN Program ###
+    # MAIN Program
+
+    # Get sim seed from command line or global config
     if args.random_seed is not None:
         seed = args.random_seed
     else:
-        seed = global_conf.get("sim_seed", 1)
+        seed = yaml_global_conf.get("sim_seed", 1)
 
+    # Initialize random number generator
     rng = numpy.random.default_rng(seed)
     utils.set_rng(rng)
 
-    # Prepare Nodes
+    # Prepare Nodes dictionary
     nodes = {}
 
-    # Prepare objects
+    # Prepare EventQueue and Channel
     event_queue = EventQueue()
-    channel = Channel(event_queue, channel_conf)
+    channel = Channel(event_queue, yaml_channel_conf)
 
-    # Create nodes
-    end_device_default = config.get("end_device_default", {})
-    end_devices = config.get("end_devices", [])
+    # Create End Devices. These are assigned a node_id from 0 to num_ed -1
+    # and are stored in the 'nodes' dictionary to ease the acces by node_id
+    # This is internal and not related to the trackerid
+    yaml_end_device_default = yaml_config.get("end_device_default", {})
     for i in range(0, num_ed):
         emitter = LoraEndDevice(i, event_queue, channel)
-        emitter.update_config(end_device_default, False)
-        if len(end_devices) > i:
-            if not emitter.update_config(end_devices[i]):
-                print("Field 'trackerid' is required in {} 'end_devices' section file".format(args.config))
-                exit(1)
-        if emitter.get_trackerid() is None:
-            # Tracker id has not been filled yet, read directly from JSON
-            # and assign values according to their positions in the list
-            emitter.update_config(end_devices_conf[i])
-        else:
-            # Tracker id has been filled already so we have to look for
-            # the corresponding node in the JSON file
-            end_device_conf = next((item for item in end_devices_conf if item["trackerid"] == emitter.get_trackerid()), None)
-            emitter.update_config(end_device_conf)
+
+        # The configuration is updated from the config files: first the
+        # 'end_device_default' section of the YAML file is processed
+        # which is common for all the nodes and then the JSON file.
+        emitter.update_config(yaml_end_device_default)
+        emitter.update_config(json_end_devices_conf[i])
 
         nodes[emitter.id] = emitter
 
+    # Create Gateway. These are assigned a node_id from num_ed to num_ed + num_gw -1
+    # and are stored in the 'nodes' dictionary to ease the acces by node_id
+    # This is internal and not related to the trackerid
+    gateway_default = yaml_config.get("gateway_default", {})
+    gateways = yaml_config.get("gateways", [])
 
-    # Create gateways
-    gateway_default = config.get("gateway_default", {})
-    gateways = config.get("gateways", [])
-    print(gateways)
     for i in range(num_gw):
         gw = LoraGateway(num_ed + i, event_queue, channel)
+
+        # The configuration is updated from the YAML config file. First the
+        # 'gateway_default' section is processed and then the 'gateways'
+        # section. Notice that the trackerid is required in the 'gateways' section
         gw.update_config(gateway_default)
         if not gw.update_config(gateways[i]):
             print("Field 'trackerid' is required in {} 'gateways' section file".format(args.config))
             exit(1)
+
         nodes[gw.id] = gw
 
-    # Add nodes to channel
+    # Add all the nodes to channel
     channel.set_nodes(nodes)
 
-
-    for node in nodes.values():
-        print(node)
-
-    # Create first event for each node
-    for i in [n.id for n in nodes.values() if isinstance(n, LoraEndDevice)]:
+    # Create the first event for each end devices
+    # (generation of the first packet) at time t_init
+    for i in range(0, num_ed):
         ts = nodes[i].get_t_init()
         new_event = EventNewData(ts, nodes[i])
         event_queue.push(new_event)
 
     # Main event loop
     simulated_events = 0
-    sim_init = event_queue[-1].get_ts()
+    # Get the time stamp for the first event
+    # to calculate the simulation duration
+    sim_init = event_queue[0].get_ts()
 
     while event_queue.size() > 0:
 
-        event = event_queue.pop()
+        # Pop the first event from the queue
+        # The queue is in ascending order of ts
+        event = event_queue.pop(0)
 
-        if event.get_ts() > sim_init + int(global_conf.get('sim_duration', defaults.global_sim_duration)):
+        # Check if the simulation has been completed
+        if event.get_ts() > sim_init + int(yaml_global_conf.get('sim_duration', defaults.global_sim_duration)):
             break
 
+        # Process the event
         event.process()
         simulated_events += 1
 
         # Print events
-
-        # Filter to visualize only one node
-        event_node_id = event.get_handler().get_node_id() if type(event.get_handler()) is not Channel else event.get_creator().get_node_id()
-        if args.filter != -1 and event_node_id != args.filter:
-            continue
 
         # Print nodes transmitting at this time
         for i, value in enumerate(channel.get_transmitting()):
@@ -174,10 +171,10 @@ def main():
 
         # Print event
         print(text)
-    with open(global_conf.get("sim_output", defaults.global_sim_output), "w") as f:
-        json.dump(channel.get_output(), f)
 
-    print(channel.get_output())
+    # If the similator has finished, write the output
+    with open(yaml_global_conf.get("sim_output", defaults.global_sim_output), "w") as f:
+        json.dump(channel.get_output(), f)
 
 
 if __name__ == "__main__":

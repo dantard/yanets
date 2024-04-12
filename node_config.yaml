@@ -14,19 +14,9 @@ channel_model:
                   [ -36.0, -36.0, -36.0, -36.0, -36.0, 6.0 ]]
 
 end_device_default:
-  traffic:
-    mode: fixed
-    period: 10
-    backoff: 0
   tx_power_dBm: 14
   antenna_gain_dBi: 3
-  SNR_min:
-    - SF12: -20
-    - SF11: -17.5
-    - SF10: -15
-    - SF9: -12.5
-    - SF8: -10
-    - SF7: -7.5
+
 
 gateway_default:
   antenna_gain_dBi: 3
@@ -49,14 +39,3 @@ gateways:
 
 
 
-end_devices:
-  - trackerid: bb000019
-    traffic:
-      mode: fixed
-      period: 4
-      backoff: 0
-  - trackerid: bb000008
-    traffic:
-      mode: fixed
-      period: 4
-      backoff: 0

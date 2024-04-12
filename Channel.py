@@ -4,7 +4,7 @@ from datetime import datetime
 
 import geopy.distance
 
-from Events import EventEnterChannel, EventLeaveChannel, EventTXFinished, EventRX
+from Events import EventEnterChannel, EventLeaveChannel, EventTXFinished
 from Frame import Frame
 from Nodes import LoraGateway, LoraEndDevice
 from lora import compute_lora_duration
@@ -56,10 +56,6 @@ class Channel:
             self.transmitting[source_node.get_node_id()] = False
             self.update_stats(frame)
             self.ongoing_frames.remove(event.get_frame())
-            gws = [n for n in self.nodes.values() if isinstance(n, LoraGateway)]
-            for gateway in gws:
-                new_event = EventRX(event.ts, self, event.get_frame(), gateway)
-                self.event_queue.push(new_event)
 
     def path_loss(self, pos1, pos2):
         dist = geopy.distance.geodesic(pos1, pos2).km
