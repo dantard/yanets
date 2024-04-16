@@ -1,12 +1,11 @@
 import re
 import sys
 from datetime import datetime
-from random import randint
 
 import numpy
 
 import defaults
-import utils
+import rng
 from Events import EventTXStarted, EventEnterChannel, EventNewData, EventTXFinished, EventLeaveChannel
 from Frame import Frame
 
@@ -101,12 +100,9 @@ class Node(object):
         return self.freq
 
     def update_config(self, info):
-        if info.get('trackerid') is None:
-            return False
         self.latitude = float(info.get('latitude', self.latitude))
         self.longitude = float(info.get('longitude', self.longitude))
         self.trackerid = info.get('trackerid', self.trackerid)
-        return True
 
 
 
@@ -116,10 +112,9 @@ class LoraEndDevice(Node):
     def __init__(self, id, event_queue, channel):
         super(LoraEndDevice, self).__init__(id, event_queue, channel)
         self.busy = False
-        self.traffic = defaults.traffic
         self.traffic_period = defaults.traffic_period
         self.traffic_t_init = 0
-        self.traffic_backoff = defaults.backoff
+        self.backoff = defaults.backoff
 
 
     def get_t_init(self):
@@ -130,14 +125,13 @@ class LoraEndDevice(Node):
         if self.busy:
             print("Trama descartada por transmision concurrente", self.get_node_id())
         else:
-            backoff = utils.get_random_int(0, self.traffic_backoff)
+            backoff = rng.get_random_int(0, self.backoff)
             new_event = EventTXStarted(event.ts + backoff, self)
             self.event_queue.push(new_event)
             self.busy = True
 
         # Generate subsequent data event
-        backoff = utils.get_random_int(0, self.traffic_backoff)
-        new_event = EventNewData(event.ts + self.traffic_period + backoff, self)
+        new_event = EventNewData(event.ts + self.traffic_period, self)
         self.event_queue.push(new_event)
 
     def event_tx_finished(self, event):
@@ -147,8 +141,7 @@ class LoraEndDevice(Node):
 
 
     def update_config(self, info):
-        if not super().update_config(info):
-            return False
+        super().update_config(info)
 
         self.phy_payload = info.get('PHYPayload', self.phy_payload)
 
@@ -170,11 +163,11 @@ class LoraEndDevice(Node):
         self.antenna_gain_dBi = float(info.get('antenna_gain_dBi', self.antenna_gain_dBi))
         self.noise_figure_dB = float(info.get('noise_figure_dB', self.noise_figure_dB))
         self.SNR_min = info.get('SNR_min', self.SNR_min)
+        self.backoff = int(info.get('backoff', self.backoff))
 
         if (traffic := info.get('traffic')) is not None:
             self.traffic_period = float(traffic.get('period', self.traffic_period))
-            self.traffic_backoff = int(traffic.get('backoff', self.traffic_backoff))
-            if self.traffic_backoff >= self.traffic_period:
+            if self.backoff >= self.traffic_period:
                 raise ValueError("Node {}: Backoff must be shorter than period".format(self.get_trackerid()))
 
             t_init = traffic.get('t_init', defaults.traffic_t_init)
@@ -189,7 +182,7 @@ class LoraEndDevice(Node):
                 "lon: {}, lat: {}, freq: {}, "
                 "sf: {}, bw: {}, codr: {}, "
                 "tx_power_dBm: {}, antenna_gain_dBi: {}, "
-                "noise_figure_dB: {}").format(self.trackerid,self.traffic_t_init, self.longitude, self.latitude, self.freq, self.sf, self.bw, self.codr, self.tx_power_dBm, self.antenna_gain_dBi, self.noise_figure_dB)
+                "noise_figure_dB: {}, backoff: {}").format(self.trackerid,self.traffic_t_init, self.longitude, self.latitude, self.freq, self.sf, self.bw, self.codr, self.tx_power_dBm, self.antenna_gain_dBi, self.noise_figure_dB, self.backoff)
 
 class LoraGateway(Node):
     def __init__(self, id, event_queue, channel):

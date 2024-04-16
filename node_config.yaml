@@ -16,6 +16,8 @@ channel_model:
 end_device_default:
   tx_power_dBm: 14
   antenna_gain_dBi: 3
+  backoff: 0
+
 
 
 gateway_default:

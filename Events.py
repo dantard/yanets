@@ -57,6 +57,8 @@ class EventNewData(NodeEvent):
 class EventTXStarted(NodeEvent):
     pass
 
+class EventTXFinished(NodeEventWithFrame):
+    pass
 
 class EventEnterChannel(ChannelEventWithFrame):
     pass
@@ -66,6 +68,5 @@ class EventLeaveChannel(ChannelEventWithFrame):
     pass
 
 
-class EventTXFinished(NodeEventWithFrame):
-    pass
+
 

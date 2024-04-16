@@ -4,28 +4,23 @@ from datetime import datetime
 
 import geopy.distance
 
+import defaults
 from Events import EventEnterChannel, EventLeaveChannel, EventTXFinished
 from Frame import Frame
 from Nodes import LoraGateway, LoraEndDevice
 from lora import compute_lora_duration
 
-
-def exclude(lst, ex):
-    return [x for x in lst if x != ex]
-
-
 class Channel:
-    SNR_thresholds = [-7.5, -10.0, -12.5, -15.0, -17.5, -20.0]
-
     def __init__(self, event_queue, channel_model):
         self.nodes = {}
         self.transmitting = []
-        self.event_queue = event_queue
         self.ongoing_frames = []
-        self.alpha = channel_model.get('alpha')
-        self.L0 = channel_model.get('L0')
-        self.SIR_thresholds = channel_model.get('SIR_thresholds')
         self.output = []
+        self.event_queue = event_queue
+        self.alpha = channel_model.get('alpha', defaults.alpha)
+        self.L0 = channel_model.get('L0', defaults.L0)
+        self.SIR_thresholds = channel_model.get('SIR_thresholds', defaults.SIR_thresholds)
+
 
     def get_transmitting(self):
         return self.transmitting
@@ -40,9 +35,7 @@ class Channel:
             frame = event.get_frame()
             node = frame.get_source()
             self.transmitting[node.get_node_id()] = True
-
             self.propagation(frame)
-
             self.ongoing_frames.append(event.get_frame())
 
             phy_payload_len = len(frame.get_phy_payload()) * 4 / 8
