@@ -1,6 +1,6 @@
 # Yanets
 
-The LoRaSim simulator is software for simulating LoRa networks. It is a discrete-time simulator in which the software sequentially processes a set of time-ordered events that are generated during the simulation itself.
+The Yanets simulator is software for simulating LoRa networks. It is a discrete-time simulator in which the software sequentially processes a set of time-ordered events that are generated during the simulation itself.
 
 ## Introduction
 
