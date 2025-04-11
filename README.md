@@ -42,7 +42,7 @@ The event loop resumes, extracting a new element from the queue—the Event inse
 The event loop runs again and extracts the newly generated EventEnterChannel, which, being a subtype of ChannelEvent, is processed by the Channel object. At this point, the Channel registers that node 1 has started its transmission and stores the frame among the "ongoing frames." It then calculates the ToA and generates a new EventTXFinished event with a timestamp equal to the sum of the EventEnterChannel's timestamp and the ToA, which is inserted into the queue.
 
 ## Output File Structure
-
+```
 [
    {
        "_id": {
@@ -111,3 +111,4 @@ The event loop runs again and extracts the newly generated EventEnterChannel, wh
 },
 {...} # Same info for the subsequent frame
 ]
+```
